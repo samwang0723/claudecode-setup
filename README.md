@@ -19,6 +19,21 @@ Your old `~/.claude/commands/` still work but are deprecated. Skills are the off
 chmod +x install.sh && ./install.sh
 ```
 
+### Everything Claude Code Plugin
+
+```bash
+# Add marketplace
+/plugin marketplace add affaan-m/everything-claude-code
+
+# Install plugin
+/plugin install everything-claude-code@everything-claude-code
+
+# Clone the repo first
+git clone https://github.com/affaan-m/everything-claude-code.git
+cd everything-claude-code
+./install.sh typescript python golang
+```
+
 ## Architecture
 
 ```mermaid

@@ -166,7 +166,18 @@ cat > "$SETTINGS_FILE" << 'EOF'
 }
 EOF
 log "Created settings.json (model: opus, agent teams enabled)"
-warn "Note: hooks, plugins, and statusLine not included — add them manually if needed"
+
+# ---------------------------------------------------------------------------
+# 2b. statusline.sh → ~/.claude/statusline.sh
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$SCRIPT_DIR/statusline.sh" ]; then
+  cp "$SCRIPT_DIR/statusline.sh" "$CLAUDE_DIR/statusline.sh"
+  chmod +x "$CLAUDE_DIR/statusline.sh"
+  log "Copied statusline.sh → ~/.claude/statusline.sh"
+else
+  warn "statusline.sh not found in $SCRIPT_DIR — skipping"
+fi
 
 # ---------------------------------------------------------------------------
 # 3. Global CLAUDE.md — APPEND skills+agents section (never overwrite)
