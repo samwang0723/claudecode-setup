@@ -62,7 +62,7 @@ flowchart TB
 1. SVP invokes a skill (e.g., `/lead-start --devs 3 implement OAuth2 PKCE`)
 2. Skill forks into isolated context with `agent: team-lead`
 3. team-lead orchestrates specialist agents through the pipeline
-4. Each agent works in git worktrees and writes status to `tasks/`
+4. Each agent works in git worktrees and writes status to `.claude/tasks/`
 
 ## File Layout
 
@@ -152,17 +152,18 @@ Plan → Build (TDD ×N, worktrees) → Peer Review → Merge → QA e2e → Gat
 
 ```
 your-project/
-├── tasks/
-│   └── oauth2-pkce/
-│       ├── _status.md          ← source of truth
-│       ├── pm.md               ← requirements
-│       ├── architect.md        ← design + areas
-│       ├── dev-1.md … dev-3.md ← TDD reports
-│       ├── peer-review.md      ← cross-review
-│       ├── qa.md               ← e2e results
-│       ├── security.md         ← security gate
-│       ├── arch-gate.md        ← arch gate
-│       └── summary.md          ← executive summary
+├── .claude/
+│   └── tasks/
+│       └── oauth2-pkce/
+│           ├── _status.md          ← source of truth
+│           ├── pm.md               ← requirements
+│           ├── architect.md        ← design + areas
+│           ├── dev-1.md … dev-3.md ← TDD reports
+│           ├── peer-review.md      ← cross-review
+│           ├── qa.md               ← e2e results
+│           ├── security.md         ← security gate
+│           ├── arch-gate.md        ← arch gate
+│           └── summary.md          ← executive summary
 └── .worktrees/
     └── oauth2-pkce/
         ├── dev-1/              ← branch: oauth2-pkce/dev-1
@@ -176,7 +177,7 @@ your-project/
 ```
 SVP: /lead-start oauth2-pkce
   ↓
-team-lead reads tasks/oauth2-pkce/_status.md
+team-lead reads .claude/tasks/oauth2-pkce/_status.md
   ↓
 Phase: BUILD, 2/3 devs done
   ↓
@@ -209,4 +210,4 @@ mv ~/.claude/CLAUDE.md.bak ~/.claude/CLAUDE.md 2>/dev/null
 rm -rf ~/.claude/commands/
 ```
 
-`tasks/` folders in your projects are kept — they're your documentation.
+`.claude/tasks/` folders in your projects are kept — they're your documentation.

@@ -61,15 +61,16 @@ done
 log "Created ~/.claude/agents/ and ~/.claude/skills/*/"
 
 # ---------------------------------------------------------------------------
-# 2. settings.json — use exact config, never overwrite if exists
+# 2. settings.json — backup existing + overwrite
 # ---------------------------------------------------------------------------
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 
 if [ -f "$SETTINGS_FILE" ]; then
-  info "settings.json already exists — skipping (not overwriting your config)"
-  info "If you need the reference config, see install.sh or README"
-else
-  cat > "$SETTINGS_FILE" << 'EOF'
+  cp "$SETTINGS_FILE" "$SETTINGS_FILE.bak"
+  warn "Backed up existing settings.json → settings.json.bak"
+fi
+
+cat > "$SETTINGS_FILE" << 'EOF'
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "cleanupPeriodDays": 365,
@@ -164,9 +165,8 @@ else
   "skipDangerousModePermissionPrompt": true
 }
 EOF
-  log "Created settings.json (model: opus, agent teams enabled)"
-  warn "Note: hooks, plugins, and statusLine not included — add them manually if needed"
-fi
+log "Created settings.json (model: opus, agent teams enabled)"
+warn "Note: hooks, plugins, and statusLine not included — add them manually if needed"
 
 # ---------------------------------------------------------------------------
 # 3. Global CLAUDE.md — APPEND skills+agents section (never overwrite)
@@ -216,7 +216,7 @@ Specialist subagents delegated to by team-lead. Each has tools and a reporting c
 
 ## Task State System
 
-All work tracked in `tasks/` with per-role markdown files and `_status.md` as source of truth.
+All work tracked in `.claude/tasks/` with per-role markdown files and `_status.md` as source of truth.
 See individual agent `.md` files for formats.
 
 ### _status.md Format
@@ -250,7 +250,7 @@ Base Commit: {sha}
 
 ### Rules
 - Every agent reads `_status.md` before work, updates it after.
-- Code in worktrees, task docs in main repo.
+- Code in worktrees, task docs in main repo `.claude/tasks/`.
 - SVP decides when to merge — never auto-merge.
 
 ## Git Worktree Isolation
@@ -309,7 +309,7 @@ Specialist subagents delegated to by team-lead. Each has tools and a reporting c
 
 ## Task State System
 
-All work tracked in `tasks/` with per-role markdown files and `_status.md` as source of truth.
+All work tracked in `.claude/tasks/` with per-role markdown files and `_status.md` as source of truth.
 
 ### _status.md Format
 ```markdown
@@ -342,7 +342,7 @@ Base Commit: {sha}
 
 ### Rules
 - Every agent reads `_status.md` before work, updates it after.
-- Code in worktrees, task docs in main repo.
+- Code in worktrees, task docs in main repo `.claude/tasks/`.
 - SVP decides when to merge — never auto-merge.
 
 ## Git Worktree Isolation
@@ -372,7 +372,7 @@ cat > "$AGENTS_DIR/team-lead.md" << 'AGENT_EOF'
 name: team-lead
 description: >
   Primary orchestrator. Manages the full pipeline, delegates to specialist agents,
-  tracks state in tasks/ folder. Enforces TDD, parallel dev work (up to 5),
+  tracks state in .claude/tasks/ folder. Enforces TDD, parallel dev work (up to 5),
   peer review, QA e2e, and security+arch gate. Uses git worktrees for isolation.
 model: claude-opus-4-6
 ---
@@ -380,7 +380,7 @@ model: claude-opus-4-6
 You are the **Engineering Team Lead** reporting directly to the SVP.
 
 ## Core Responsibility
-Orchestrate the pipeline, delegate to specialist agents, **maintain state in `tasks/`**.
+Orchestrate the pipeline, delegate to specialist agents, **maintain state in `.claude/tasks/`**.
 
 ## Your Direct Reports (Agents)
 
@@ -396,7 +396,7 @@ Orchestrate the pipeline, delegate to specialist agents, **maintain state in `ta
 ## Task State Management
 
 ### New Task
-1. Slugify name → `tasks/{slug}/`
+1. Slugify name → `.claude/tasks/{slug}/`
 2. Create `_status.md` (see CLAUDE.md for format).
 3. Update checklist + Phase/Status as work progresses.
 4. After architect confirms N areas, update `Devs:` field.
@@ -527,7 +527,7 @@ You are a **Senior Developer**. **You report to team-lead.**
 
 ## CRITICAL: Git Worktree
 - Code → `.worktrees/{slug}/dev-{N}/` ONLY
-- Task docs (`dev-{N}.md`) → main repo `tasks/{slug}/`
+- Task docs (`dev-{N}.md`) → main repo `.claude/tasks/{slug}/`
 - Commit: `cd .worktrees/{slug}/dev-{N} && git add -A && git commit -m "feat({area}): ..."`
 - **NEVER modify main repo code.**
 
@@ -678,7 +678,7 @@ agent: team-lead
 | `implement OAuth2 PKCE` | TBD | oauth2-pkce |
 | `oauth2-pkce` | from _status.md | oauth2-pkce |
 
-## If RESUMING (tasks/{slug}/_status.md exists):
+## If RESUMING (.claude/tasks/{slug}/_status.md exists):
 1. Read `_status.md` → Phase, dev_count, next unchecked item.
 2. Read all completed role files.
 3. DO NOT redo completed phases.
@@ -686,7 +686,7 @@ agent: team-lead
 5. Report: "Resuming '{title}' — {Phase}. {N} devs. Next: {next}."
 
 ## If NEW:
-1. Create `tasks/{slug}/` + `_status.md`.
+1. Create `.claude/tasks/{slug}/` + `_status.md`.
 2. Set `Devs: {N}` or `TBD`.
 3. Report: "Starting '{title}'. PLAN phase."
 4. Execute PLAN: pm → architect.
@@ -716,7 +716,7 @@ agent: team-lead
 
 # Lead Summary
 
-1. Scan all `tasks/*/` directories. Read each `_status.md`.
+1. Scan all `.claude/tasks/*/` directories. Read each `_status.md`.
 2. Report table: Task | Phase | Status | Updated | Blockers
 3. For IN_PROGRESS tasks: last completed step, next step, blockers, decisions needed.
 4. Suggest next actions.
@@ -769,7 +769,7 @@ agent: team-lead
 
 # PR Review
 
-Create `tasks/pr-review-{slug}/` and run:
+Create `.claude/tasks/pr-review-{slug}/` and run:
 1. **dev** → change scope, TDD compliance → `dev-1.md`
 2. **dev** agents peer-review → `peer-review.md`
 3. **qa** → e2e integration → `qa.md`
@@ -799,7 +799,7 @@ agent: team-lead
 
 # Architecture Review
 
-Create `tasks/arch-review-{slug}/` and run:
+Create `.claude/tasks/arch-review-{slug}/` and run:
 1. **explorer** → codebase map → `dev-1.md`
 2. **architect** → assessment + mermaid → `architect.md`
 3. **security-reviewer** → STRIDE → `security.md`
@@ -826,7 +826,7 @@ agent: team-lead
 
 # Incident Investigation
 
-Create `tasks/incident-{slug}/` and run:
+Create `.claude/tasks/incident-{slug}/` and run:
 1. **dev** → logs, changes, errors → `dev-1.md`
 2. **architect** → system impact → `architect.md`
 3. If security: **security-reviewer** → `security.md`
@@ -853,7 +853,7 @@ agent: team-lead
 
 # Strategic Decision
 
-Create `tasks/strategy-{slug}/` and run:
+Create `.claude/tasks/strategy-{slug}/` and run:
 1. **pm** → requirements, cost → `pm.md`
 2. **architect** → options, diagrams, tradeoffs → `architect.md`
 3. **security-reviewer** → compliance → `security.md`
@@ -879,7 +879,7 @@ agent: team-lead
 
 # Project Scoping
 
-Create `tasks/scope-{slug}/` and run:
+Create `.claude/tasks/scope-{slug}/` and run:
 1. **pm** → MoSCoW, estimates, risks → `pm.md`
 2. **architect** → design, diagram, areas → `architect.md`
 3. **security-reviewer** → early flags → `security.md`
@@ -905,7 +905,7 @@ agent: team-lead
 
 # Quick Scan
 
-Create `tasks/scan-{slug}/` and run:
+Create `.claude/tasks/scan-{slug}/` and run:
 1. **explorer** → structure, stack, deps
 2. **dev** → recent activity, tests, issues
 3. **qa** → quick quality check
@@ -974,7 +974,7 @@ echo ""
 echo -e "  ${BOLD}Pipeline:${NC}"
 echo -e "    ${GREEN}Plan${NC} → ${CYAN}Build TDD (worktrees)${NC} → ${YELLOW}Peer Review${NC} → ${BLUE}Merge${NC} → ${BLUE}QA${NC} → ${RED}Gate${NC} → ${GREEN}Done${NC}"
 echo ""
-echo -e "  ${BOLD}State:${NC}  tasks/{slug}/*.md    ${BOLD}Code:${NC} .worktrees/{slug}/dev-{N}/"
+echo -e "  ${BOLD}State:${NC}  .claude/tasks/{slug}/*.md    ${BOLD}Code:${NC} .worktrees/{slug}/dev-{N}/"
 echo ""
 echo -e "  ${BOLD}Skills:${NC}"
 echo -e "    ${YELLOW}/lead-start${NC}   — Start or resume (--devs N)"
