@@ -34,6 +34,15 @@ cd everything-claude-code
 ./install.sh typescript python golang
 ```
 
+### Global CLAUDE.md Template
+
+A sample global `~/.claude/CLAUDE.md` is provided at [`sample-claude.md`](sample-claude.md). Copy it and fill in your own details:
+
+```bash
+cp sample-claude.md ~/.claude/CLAUDE.md
+# Edit placeholders: {YOUR_NAME}, {YOUR_TITLE}, {COMPANY_NAME}, etc.
+```
+
 ## Architecture
 
 ```mermaid
