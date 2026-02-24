@@ -24,7 +24,7 @@ No build system, no tests, no dependencies beyond `jq` (auto-installed by the sc
 
 - **Heredoc-based file generation**: All agents and skills are generated via `cat > file << 'EOF'` heredocs inside `install.sh`. Editing agent/skill content means editing the corresponding heredoc block in `install.sh`, not separate files.
 - **Backup then overwrite for settings.json**: Existing `settings.json` is backed up to `settings.json.bak` before overwriting with the latest config.
-- **Append-only for CLAUDE.md**: Appended (not replaced) using a `$MARKER` grep guard (`## Architecture: Skills + Agents`). Existing file is backed up to `CLAUDE.md.bak` before appending.
+- **Append-only for CLAUDE.md**: Appended (not replaced) using `$MARKER` grep guards (`## Architecture: Skills + Agents` and `## Agent Teams (Experimental)`). Existing file is backed up to `CLAUDE.md.bak` before appending. Two separate marker checks for skills+agents vs agent teams sections.
 - **Task state in `.claude/tasks/`**: All task tracking (`_status.md`, role reports) goes under `.claude/tasks/{slug}/` in the target project, keeping the project root clean.
 - **YAML frontmatter in skills**: Each `SKILL.md` uses `context: fork` + `agent: team-lead` to run in isolated subagent context.
 - **`$ARGUMENTS` placeholder**: Skills reference `$ARGUMENTS` for runtime argument injection by Claude Code.
@@ -34,9 +34,9 @@ No build system, no tests, no dependencies beyond `jq` (auto-installed by the sc
 | Target | Count | Purpose |
 |--------|-------|---------|
 | `~/.claude/agents/*.md` | 7 | team-lead, architect, dev, qa, security-reviewer, pm, explorer |
-| `~/.claude/skills/*/SKILL.md` | 9 | lead-start, lead-summary, lead-cleanup, review-pr, arch-review, investigate, strategy, scope, quick-scan |
-| `~/.claude/settings.json` | 1 | Permissions, model (opus), env vars, agent teams flag |
-| `~/.claude/CLAUDE.md` | append | Skills+Agents architecture section |
+| `~/.claude/skills/*/SKILL.md` | 12 | 9 pipeline (lead-start, lead-summary, lead-cleanup, review-pr, arch-review, investigate, strategy, scope, quick-scan) + 3 team (team-start, team-status, team-stop) |
+| `~/.claude/settings.json` | 1 | Permissions, model (opus), env vars, agent teams flag, teammateMode |
+| `~/.claude/CLAUDE.md` | append | Skills+Agents architecture section + Agent Teams section |
 
 ## Shell Conventions
 

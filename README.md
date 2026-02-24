@@ -102,7 +102,10 @@ flowchart TB
     ├── investigate/SKILL.md          ← incident investigation
     ├── strategy/SKILL.md             ← strategic decisions
     ├── scope/SKILL.md                ← project scoping
-    └── quick-scan/SKILL.md           ← health check
+    ├── quick-scan/SKILL.md           ← health check
+    ├── team-start/SKILL.md           ← spawn agent team (parallel)
+    ├── team-status/SKILL.md          ← monitor team progress
+    └── team-stop/SKILL.md            ← clean up team
 ```
 
 ## Skill Frontmatter
@@ -137,6 +140,9 @@ agent: team-lead                  # delegate to team-lead agent
 | `/strategy <decision>` | Decisions | PM → architect → security → recommendation |
 | `/scope <project>` | Planning | MoSCoW → design → security → go/no-go |
 | `/quick-scan [focus]` | Health check | Structure → tests → quality |
+| `/team-start [--members N] <task>` | Agent team | Spawns N parallel Claude instances |
+| `/team-status [team-name]` | Team monitor | Member progress, tasks, messages |
+| `/team-stop <team-name>` | Team cleanup | Removes team, worktrees, branches |
 
 ### `--devs N` Examples
 
@@ -162,6 +168,40 @@ Plan → Build (TDD ×N, worktrees) → Peer Review → Merge → QA e2e → Gat
 | QA | qa | `.worktrees/{slug}/integrate/` | `qa.md` |
 | Gate | security + architect | `.worktrees/{slug}/integrate/` | `security.md`, `arch-gate.md` |
 | Report | team-lead | main repo | `summary.md` |
+
+## Agent Teams (Experimental)
+
+Agent Teams spawn **separate Claude Code instances** that work in true parallel. Each teammate has its own context window and communicates via inboxes.
+
+### When to Use Which
+
+| | Subagents (`/lead-start`) | Agent Teams (`/team-start`) |
+|---|---|---|
+| **Execution** | Within single session | Separate Claude instances |
+| **Context** | Shared context window | Independent per member |
+| **Communication** | Return results to parent | Direct messaging |
+| **Best for** | Orchestration, reviews, sequential | Embarrassingly parallel work |
+| **Cost** | Lower (shared context) | Higher (N × full context) |
+
+### Team Workflow
+
+```bash
+# Spawn a 3-member team for parallel implementation
+/team-start --members 3 refactor payment processing module
+
+# Monitor progress
+/team-status payment-processing-module
+
+# After all members complete → merge, QA, gate (uses subagents)
+# Clean up
+/team-stop payment-processing-module
+```
+
+### Display Modes
+
+Configure `teammateMode` in `settings.json`:
+- `"in-process"` (default) — All teammates in main terminal. `Shift+Down` to cycle.
+- `"tmux"` — Each teammate gets own pane. Requires tmux or iTerm2.
 
 ## Task State
 
