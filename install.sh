@@ -142,7 +142,8 @@ cat > "$SETTINGS_FILE" << 'EOF'
       "Bash(npx tsc --noEmit *)",
       "Bash(npx vitest *)",
       "Bash(npx jest *)",
-      "Bash(echo *)"
+      "Bash(echo *)",
+      "Bash(trash *)"
     ],
     "deny": [
       "Read(**/.env)",
@@ -151,6 +152,7 @@ cat > "$SETTINGS_FILE" << 'EOF'
       "Read(**/*.pem)",
       "Read(**/*.key)",
       "Bash(rm -rf *)",
+      "Bash(rm *)",
       "Bash(sudo *)",
       "Bash(kubectl delete *)",
       "Bash(kubectl apply *)",
