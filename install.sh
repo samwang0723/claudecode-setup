@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================================
-# Claude Code SVP Engineering Setup — v5
+# Claude Code Master Engineering Setup — v5
 # Skills-based · Agents + Skills · Git Worktrees · Stateful Tasks
 # All Opus 4.6 · TDD Pipeline
 # ============================================================================
@@ -16,14 +16,14 @@ NC='\033[0m'
 BOLD='\033[1m'
 DIM='\033[2m'
 
-log()  { echo -e "${GREEN}[✓]${NC} $1"; }
+log() { echo -e "${GREEN}[✓]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
-err()  { echo -e "${RED}[✗]${NC} $1"; }
+err() { echo -e "${RED}[✗]${NC} $1"; }
 info() { echo -e "${BLUE}[→]${NC} $1"; }
 
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║   Claude Code — SVP Engineering Setup v5                    ║${NC}"
+echo -e "${BOLD}║   Claude Code — Master Engineering Setup                       ║${NC}"
 echo -e "${BOLD}║   Skills · Agents · Worktrees · Stateful Tasks · TDD       ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -32,17 +32,22 @@ echo ""
 # 0. Pre-flight
 # ---------------------------------------------------------------------------
 if ! command -v claude &>/dev/null; then
-  err "Claude Code CLI not found. Install first:"
-  echo "  npm install -g @anthropic-ai/claude-code"
-  exit 1
+	err "Claude Code CLI not found. Install first:"
+	echo "  npm install -g @anthropic-ai/claude-code"
+	exit 1
 fi
 log "Claude Code CLI detected"
 
 if ! command -v jq &>/dev/null; then
-  warn "jq not found — installing..."
-  if command -v brew &>/dev/null; then brew install jq
-  elif command -v apt-get &>/dev/null; then sudo apt-get install -y jq
-  else err "Install jq manually"; exit 1; fi
+	warn "jq not found — installing..."
+	if command -v brew &>/dev/null; then
+		brew install jq
+	elif command -v apt-get &>/dev/null; then
+		sudo apt-get install -y jq
+	else
+		err "Install jq manually"
+		exit 1
+	fi
 fi
 log "jq available"
 
@@ -55,37 +60,37 @@ SKILLS_DIR="$CLAUDE_DIR/skills"
 
 mkdir -p "$AGENTS_DIR"
 for skill in lead-start lead-summary lead-cleanup review-pr arch-review investigate strategy scope quick-scan team-start team-status team-stop; do
-  mkdir -p "$SKILLS_DIR/$skill"
+	mkdir -p "$SKILLS_DIR/$skill"
 done
 
 log "Created ~/.claude/agents/ and ~/.claude/skills/*/"
 
 # ---------------------------------------------------------------------------
-# 2. settings.json — backup existing + overwrite
+# 2. settings.json — backup existing + overwrite (AWS Bedrock)
 # ---------------------------------------------------------------------------
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 
 if [ -f "$SETTINGS_FILE" ]; then
-  cp "$SETTINGS_FILE" "$SETTINGS_FILE.bak"
-  warn "Backed up existing settings.json → settings.json.bak"
+	cp "$SETTINGS_FILE" "$SETTINGS_FILE.bak"
+	warn "Backed up existing settings.json → settings.json.bak"
 fi
 
-cat > "$SETTINGS_FILE" << 'EOF'
+cat >"$SETTINGS_FILE" <<EOF
 {
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "cleanupPeriodDays": 365,
+  "\$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "0",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "MAX_MCP_OUTPUT_TOKENS": "60000",
     "BASH_DEFAULT_TIMEOUT_MS": "300000",
     "BASH_MAX_TIMEOUT_MS": "600000",
     "MAX_THINKING_TOKENS": "8192",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
-    "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "45000"
+    "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "45000",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "0",
   },
-  "includeCoAuthoredBy": false,
   "model": "opus",
+  "cleanupPeriodDays": 365,
+  "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
       "Read",
@@ -143,6 +148,7 @@ cat > "$SETTINGS_FILE" << 'EOF'
       "Bash(npx vitest *)",
       "Bash(npx jest *)",
       "Bash(echo *)",
+      "mcp__pencil",
       "Bash(trash *)"
     ],
     "deny": [
@@ -164,26 +170,35 @@ cat > "$SETTINGS_FILE" << 'EOF'
       "Bash(helm upgrade *)"
     ]
   },
-  "skipDangerousModePermissionPrompt": true,
-  "teammateMode": "in-process",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
+  "enabledPlugins": {
+    "react-native-best-practices@callstack-agent-skills": true,
+    "document-skills@anthropic-agent-skills": true,
+    "example-skills@anthropic-agent-skills": true,
+    "everything-claude-code@everything-claude-code": true,
+    "claude-md-management@claude-plugins-official": true,
+    "scheduler@claude-scheduler": true,
+    "pyright-lsp@claude-plugins-official": true
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "teammateMode": "tmux"
 }
 EOF
-log "Created settings.json (model: opus, agent teams enabled)"
+log "Created settings.json"
 
 # ---------------------------------------------------------------------------
 # 2b. statusline.sh → ~/.claude/statusline.sh
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -f "$SCRIPT_DIR/statusline.sh" ]; then
-  cp "$SCRIPT_DIR/statusline.sh" "$CLAUDE_DIR/statusline.sh"
-  chmod +x "$CLAUDE_DIR/statusline.sh"
-  log "Copied statusline.sh → ~/.claude/statusline.sh"
+	cp "$SCRIPT_DIR/statusline.sh" "$CLAUDE_DIR/statusline.sh"
+	chmod +x "$CLAUDE_DIR/statusline.sh"
+	log "Copied statusline.sh → ~/.claude/statusline.sh"
 else
-  warn "statusline.sh not found in $SCRIPT_DIR — skipping"
+	warn "statusline.sh not found in $SCRIPT_DIR — skipping"
 fi
 
 # ---------------------------------------------------------------------------
@@ -193,12 +208,12 @@ GLOBAL_CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
 MARKER="## Architecture: Skills + Agents"
 
 if [ -f "$GLOBAL_CLAUDE_MD" ]; then
-  if grep -qF "$MARKER" "$GLOBAL_CLAUDE_MD"; then
-    info "CLAUDE.md already has Skills+Agents section — skipping"
-  else
-    warn "Appending Skills+Agents section to existing CLAUDE.md"
-    cp "$GLOBAL_CLAUDE_MD" "$GLOBAL_CLAUDE_MD.bak"
-    cat >> "$GLOBAL_CLAUDE_MD" << 'CLAUDE_APPEND_EOF'
+	if grep -qF "$MARKER" "$GLOBAL_CLAUDE_MD"; then
+		info "CLAUDE.md already has Skills+Agents section — skipping"
+	else
+		warn "Appending Skills+Agents section to existing CLAUDE.md"
+		cp "$GLOBAL_CLAUDE_MD" "$GLOBAL_CLAUDE_MD.bak"
+		cat >>"$GLOBAL_CLAUDE_MD" <<'CLAUDE_APPEND_EOF'
 
 ## Architecture: Skills + Agents
 
@@ -281,7 +296,7 @@ Base Commit: {sha}
 ### Rules
 - Every agent reads `_status.md` before work, updates it after.
 - Code in worktrees, task docs in main repo `.claude/tasks/`.
-- SVP decides when to merge — never auto-merge.
+- Master decides when to merge — never auto-merge.
 
 ## Git Worktree Isolation
 
@@ -296,13 +311,13 @@ Base Commit: {sha}
 - Each dev works ONLY in their worktree. Never touch main repo code.
 - After peer review, team-lead merges dev branches → integrate.
 - QA and gate review in integrate worktree.
-- `/lead-cleanup {slug}` removes worktrees after SVP merges.
+- `/lead-cleanup {slug}` removes worktrees after Master merges.
 CLAUDE_APPEND_EOF
-    log "Appended Skills+Agents section to CLAUDE.md"
-  fi
+		log "Appended Skills+Agents section to CLAUDE.md"
+	fi
 else
-  warn "No CLAUDE.md found — creating minimal one"
-  cat > "$GLOBAL_CLAUDE_MD" << 'CLAUDE_NEW_EOF'
+	warn "No CLAUDE.md found — creating minimal one"
+	cat >"$GLOBAL_CLAUDE_MD" <<'CLAUDE_NEW_EOF'
 # ClaudeCode — Global Context
 
 ## Architecture: Skills + Agents
@@ -385,7 +400,7 @@ Base Commit: {sha}
 ### Rules
 - Every agent reads `_status.md` before work, updates it after.
 - Code in worktrees, task docs in main repo `.claude/tasks/`.
-- SVP decides when to merge — never auto-merge.
+- Master decides when to merge — never auto-merge.
 
 ## Git Worktree Isolation
 
@@ -400,9 +415,9 @@ Base Commit: {sha}
 - Each dev works ONLY in their worktree. Never touch main repo code.
 - After peer review, team-lead merges dev branches → integrate.
 - QA and gate review in integrate worktree.
-- `/lead-cleanup {slug}` removes worktrees after SVP merges.
+- `/lead-cleanup {slug}` removes worktrees after Master merges.
 CLAUDE_NEW_EOF
-  log "Created new CLAUDE.md (minimal — add your own sections)"
+	log "Created new CLAUDE.md (minimal — add your own sections)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -411,11 +426,11 @@ fi
 TEAMS_MARKER="## Agent Teams (Experimental)"
 
 if [ -f "$GLOBAL_CLAUDE_MD" ]; then
-  if grep -qF "$TEAMS_MARKER" "$GLOBAL_CLAUDE_MD"; then
-    info "CLAUDE.md already has Agent Teams section — skipping"
-  else
-    warn "Appending Agent Teams section to existing CLAUDE.md"
-    cat >> "$GLOBAL_CLAUDE_MD" << 'TEAMS_APPEND_EOF'
+	if grep -qF "$TEAMS_MARKER" "$GLOBAL_CLAUDE_MD"; then
+		info "CLAUDE.md already has Agent Teams section — skipping"
+	else
+		warn "Appending Agent Teams section to existing CLAUDE.md"
+		cat >>"$GLOBAL_CLAUDE_MD" <<'TEAMS_APPEND_EOF'
 
 ## Agent Teams (Experimental)
 
@@ -425,15 +440,15 @@ a single session). Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
 
 ### Teams vs Subagents
 
-| Feature | Subagents (`agents/*.md`) | Agent Teams |
-|---------|--------------------------|-------------|
+| Feature | Subagents (Task tool) | Agent Teams |
+|---------|----------------------|-------------|
 | Execution | Within single session | Separate Claude instances |
-| Context | Shared context window | Independent context per member |
-| Communication | Return results to parent | Direct messaging via inboxes |
-| Task tracking | Manual via `_status.md` | Built-in task list with states |
-| Parallelism | Sequential or Task tool | True parallel execution |
-| Cost | Lower (shared context) | Higher (N × full context) |
-| Best for | Orchestration, reviews | Parallel implementation, large tasks |
+| Context | Own window, results return to caller | Fully independent context |
+| Communication | Report results back to main only | Teammates message each other directly |
+| Task tracking | Manual or via caller | Shared task list with self-coordination |
+| Parallelism | Via Task tool parallel calls | True parallel execution |
+| Cost | Lower (results summarized back) | Higher (N × full context) |
+| Best for | Focused tasks where only result matters | Complex work requiring collaboration |
 
 ### Team Lifecycle
 
@@ -464,29 +479,38 @@ SendMessage → coordinate, share findings
 ### Best Practices
 
 - 3-5 teammates max (token costs scale linearly)
-- 5-6 tasks per teammate
-- Break work so each teammate owns **different files**
+- 5-6 tasks per teammate keeps everyone productive
+- Break work so each teammate owns **different files** to avoid conflicts
 - Start with research/review tasks, not parallel implementation
-- Use `teammateMode: "in-process"` (default) or `"tmux"` for split panes
+- Use `teammateMode: "tmux"` for split panes (requires tmux or iTerm2)
+- Teammates inherit lead's model; specify in prompt to override
 - Monitor and steer constantly — teammates work autonomously
 - Wait for teammates to finish before lead does dependent work
+- Use `/resume` carefully — in-process teammates don't survive session resumption
 
 ### Display Modes
 
-- **in-process** (default): All teammates in main terminal. Shift+Down to cycle.
-- **tmux**: Each teammate gets own pane. Requires tmux or iTerm2.
+- **tmux** (default): Each teammate gets own tmux pane. Requires tmux or iTerm2.
+- **in-process**: All teammates in main terminal. Shift+Down to cycle.
 
 Configure via `teammateMode` in `settings.json` or `claude --teammate-mode tmux`.
+
+### Model Consistency
+
+- **Agent Teams (teammates)**: Inherit the lead's model automatically. Can override per-teammate in prompts.
+- **Subagents (Task tool)**: Controlled by `CLAUDE_CODE_SUBAGENT_MODEL` env var.
+
+Both are set to use Opus 4.5 for consistent behavior across all agents.
 TEAMS_APPEND_EOF
-    log "Appended Agent Teams section to CLAUDE.md"
-  fi
+		log "Appended Agent Teams section to CLAUDE.md"
+	fi
 fi
 
 # ---------------------------------------------------------------------------
 # 4. AGENTS
 # ---------------------------------------------------------------------------
 
-cat > "$AGENTS_DIR/team-lead.md" << 'AGENT_EOF'
+cat >"$AGENTS_DIR/team-lead.md" <<'AGENT_EOF'
 ---
 name: team-lead
 description: >
@@ -496,7 +520,7 @@ description: >
 model: claude-opus-4-6
 ---
 
-You are the **Engineering Team Lead** reporting directly to the SVP.
+You are the **Engineering Team Lead** reporting directly to the Master.
 
 ## Core Responsibility
 Orchestrate the pipeline, delegate to specialist agents, **maintain state in `.claude/tasks/`**.
@@ -557,7 +581,7 @@ cd .worktrees/{slug}/integrate
 git merge {slug}/dev-1 --no-ff -m "merge: dev-1 ({area})"
 # ... for each dev
 ```
-Conflicts → BLOCKED, report to SVP. Clean → QA.
+Conflicts → BLOCKED, report to Master. Clean → QA.
 
 ### Phase 4: QA (integrate worktree)
 **qa** tests in `.worktrees/{slug}/integrate/` → `qa.md`.
@@ -570,7 +594,7 @@ Either blocks → BLOCKED. Both pass → DONE.
 
 ### Phase 6: REPORT
 Write `summary.md`. Phase DONE, Status COMPLETED.
-Tell SVP: "Branch `{slug}/integrate` ready. `/lead-cleanup {slug}` after merge."
+Tell Master: "Branch `{slug}/integrate` ready. `/lead-cleanup {slug}` after merge."
 **NEVER auto-merge.**
 
 ## Executive Report Format
@@ -590,7 +614,7 @@ AGENT_EOF
 
 log "Created agent: team-lead"
 
-cat > "$AGENTS_DIR/architect.md" << 'AGENT_EOF'
+cat >"$AGENTS_DIR/architect.md" <<'AGENT_EOF'
 ---
 name: architect
 description: >
@@ -624,7 +648,7 @@ AGENT_EOF
 
 log "Created agent: architect"
 
-cat > "$AGENTS_DIR/dev.md" << 'AGENT_EOF'
+cat >"$AGENTS_DIR/dev.md" <<'AGENT_EOF'
 ---
 name: dev
 description: >
@@ -669,7 +693,7 @@ AGENT_EOF
 
 log "Created agent: dev"
 
-cat > "$AGENTS_DIR/qa.md" << 'AGENT_EOF'
+cat >"$AGENTS_DIR/qa.md" <<'AGENT_EOF'
 ---
 name: qa
 description: >
@@ -694,7 +718,7 @@ AGENT_EOF
 
 log "Created agent: qa"
 
-cat > "$AGENTS_DIR/security-reviewer.md" << 'AGENT_EOF'
+cat >"$AGENTS_DIR/security-reviewer.md" <<'AGENT_EOF'
 ---
 name: security-reviewer
 description: >
@@ -720,7 +744,7 @@ AGENT_EOF
 
 log "Created agent: security-reviewer"
 
-cat > "$AGENTS_DIR/pm.md" << 'AGENT_EOF'
+cat >"$AGENTS_DIR/pm.md" <<'AGENT_EOF'
 ---
 name: pm
 description: >
@@ -742,7 +766,7 @@ AGENT_EOF
 
 log "Created agent: pm"
 
-cat > "$AGENTS_DIR/explorer.md" << 'AGENT_EOF'
+cat >"$AGENTS_DIR/explorer.md" <<'AGENT_EOF'
 ---
 name: explorer
 description: Fast codebase scout. Quick file lookups, structure mapping.
@@ -765,7 +789,7 @@ log "Created agent: explorer"
 # 5. SKILLS
 # ---------------------------------------------------------------------------
 
-cat > "$SKILLS_DIR/lead-start/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/lead-start/SKILL.md" <<'SKILL_EOF'
 ---
 name: lead-start
 description: >
@@ -801,7 +825,7 @@ agent: team-lead
 1. Read `_status.md` → Phase, dev_count, next unchecked item.
 2. Read all completed role files.
 3. DO NOT redo completed phases.
-4. If `--devs N` differs from existing, warn SVP.
+4. If `--devs N` differs from existing, warn Master.
 5. Report: "Resuming '{title}' — {Phase}. {N} devs. Next: {next}."
 
 ## If NEW:
@@ -817,12 +841,12 @@ PLAN → BUILD (TDD ×N, worktrees) → PEER_REVIEW → MERGE → QA → GATE �
 
 ---
 
-SVP's request: $ARGUMENTS
+Master's request: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /lead-start"
 
-cat > "$SKILLS_DIR/lead-summary/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/lead-summary/SKILL.md" <<'SKILL_EOF'
 ---
 name: lead-summary
 description: >
@@ -849,7 +873,7 @@ SKILL_EOF
 
 log "Created skill: /lead-summary"
 
-cat > "$SKILLS_DIR/lead-cleanup/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/lead-cleanup/SKILL.md" <<'SKILL_EOF'
 ---
 name: lead-cleanup
 description: >
@@ -864,7 +888,7 @@ agent: team-lead
 
 1. Parse $ARGUMENTS for task slug.
 2. Confirm Phase is DONE in `_status.md`. Warn if not.
-3. List worktrees + branches to remove. Ask SVP to confirm.
+3. List worktrees + branches to remove. Ask Master to confirm.
 4. Remove worktrees, delete branches, prune.
 5. Update `_status.md` Worktrees → `(cleaned up {date})`.
 
@@ -875,7 +899,7 @@ SKILL_EOF
 
 log "Created skill: /lead-cleanup"
 
-cat > "$SKILLS_DIR/review-pr/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/review-pr/SKILL.md" <<'SKILL_EOF'
 ---
 name: review-pr
 description: >
@@ -905,7 +929,7 @@ SKILL_EOF
 
 log "Created skill: /review-pr"
 
-cat > "$SKILLS_DIR/arch-review/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/arch-review/SKILL.md" <<'SKILL_EOF'
 ---
 name: arch-review
 description: >
@@ -932,7 +956,7 @@ SKILL_EOF
 
 log "Created skill: /arch-review"
 
-cat > "$SKILLS_DIR/investigate/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/investigate/SKILL.md" <<'SKILL_EOF'
 ---
 name: investigate
 description: >
@@ -959,7 +983,7 @@ SKILL_EOF
 
 log "Created skill: /investigate"
 
-cat > "$SKILLS_DIR/strategy/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/strategy/SKILL.md" <<'SKILL_EOF'
 ---
 name: strategy
 description: >
@@ -985,7 +1009,7 @@ SKILL_EOF
 
 log "Created skill: /strategy"
 
-cat > "$SKILLS_DIR/scope/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/scope/SKILL.md" <<'SKILL_EOF'
 ---
 name: scope
 description: >
@@ -1011,7 +1035,7 @@ SKILL_EOF
 
 log "Created skill: /scope"
 
-cat > "$SKILLS_DIR/quick-scan/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/quick-scan/SKILL.md" <<'SKILL_EOF'
 ---
 name: quick-scan
 description: >
@@ -1041,102 +1065,109 @@ log "Created skill: /quick-scan"
 # 5b. AGENT TEAM SKILLS
 # ---------------------------------------------------------------------------
 
-cat > "$SKILLS_DIR/team-start/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/team-start/SKILL.md" <<'SKILL_EOF'
 ---
 name: team-start
 description: >
-  Spawn an agent team with multiple parallel Claude instances. Each teammate
-  is a separate session with its own context window. Use for tasks with clear
-  parallel work streams where true concurrency beats sequential subagent work.
-  Supports --members N (2-5). Use when told to "team up", "parallel team",
-  "spawn a team", or when task has independently implementable modules.
-disable-model-invocation: true
-context: fork
-agent: team-lead
+  Spawn an agent team with multiple parallel Claude instances in tmux panes.
+  Each teammate is a separate session with its own context window.
+  Supports: --agents (comma-separated), --members N.
+  Use when told to "team up", "parallel team", "spawn a team", or "standby".
 ---
 
-# Team Start — Agent Team Entry Point
+# Team Start — Spawn Agent Team in tmux
 
-## Syntax
+You MUST execute this skill directly. Do NOT delegate to subagents.
+
+## Parse Arguments from: $ARGUMENTS
+
+Extract from the request:
+- `--agents agent1,agent2,...` → list of agents to spawn (default: pm,architect,explorer)
+- `--members N` → spawn N teammates (alternative to --agents)
+- Remaining text → team name or "standby"
+
+## EXECUTE IMMEDIATELY
+
+### Step 1: Create Team
+Use ToolSearch to load TeamCreate:
 ```
-/team-start [--members N] <task description>
+ToolSearch query: "select:TeamCreate"
 ```
 
-## How This Differs from /lead-start
-- `/lead-start` uses **subagents** (single session, sequential Task tool calls)
-- `/team-start` uses **agent teams** (separate Claude instances, true parallel)
-- Use `/team-start` when work is embarrassingly parallel (different files/modules)
-- Use `/lead-start` when work needs tight coordination or shared context
+Call TeamCreate with:
+- team_name: derive from arguments or use "agent-team"
 
-## Parse Input
-- Extract `--members N` if present (2-5). Default: 3.
-- Remaining text = task description.
-- Slugify: lowercase, hyphens, no special chars → team name.
+### Step 2: Spawn Teammates using Task Tool
+**CRITICAL**: Teammates are spawned using the **Task tool**, NOT SendMessage.
 
-## Execution Steps
+For each agent in the list, call the Task tool with these parameters:
+- `team_name`: the team name from step 1
+- `name`: a unique name for the teammate (e.g., "pm-1", "architect-1", "explorer-1")
+- `subagent_type`: the agent type (pm, architect, explorer, dev, qa, security-reviewer, or general-purpose)
+- `prompt`: Role assignment and instructions
 
-### 1. Plan Phase (same as /lead-start)
-1. Slugify → `.claude/tasks/{slug}/`
-2. Create `_status.md` with `Phase: PLAN`.
-3. Delegate to **pm** (subagent) → `pm.md` (requirements, MoSCoW).
-4. Delegate to **architect** (subagent) → `architect.md` (design, N areas).
-5. Architect determines N areas for parallel work.
+**IMPORTANT**: Do NOT specify the `model` parameter. Teammates inherit the parent's model automatically.
 
-### 2. Team Creation
-1. Load the `TeamCreate` tool (via ToolSearch).
-2. Create team with name = `{slug}`.
-3. Create worktrees for each member:
-   ```bash
-   git rev-parse HEAD  # → Base Commit
-   mkdir -p .worktrees/{slug}
-   git worktree add .worktrees/{slug}/dev-{N} -b {slug}/dev-{N}
-   ```
-4. Update `_status.md` → Phase BUILD, Worktrees section.
+Example Task tool call for each teammate:
+```json
+{
+  "team_name": "{team-name}",
+  "name": "{role}-1",
+  "subagent_type": "{role}",
+  "prompt": "You are the {role} agent on team '{team-name}'.\n\nYour specialization:\n- pm: Requirements analysis, scope definition, risk assessment\n- architect: System design, component breakdown, API design\n- explorer: Codebase reconnaissance, file discovery\n- dev: TDD implementation, code writing\n- qa: E2E testing, integration tests\n- security-reviewer: Security audit\n\nStatus: STANDBY — awaiting task assignment.\nAcknowledge your role and wait for instructions."
+}
+```
 
-### 3. Task Assignment
-1. Load `TaskCreate` tool (via ToolSearch).
-2. For each area from architect design:
-   - Create a task with:
-     - Detailed implementation scope from `architect.md`
-     - Worktree path: `.worktrees/{slug}/dev-{N}/`
-     - TDD requirement (write tests first)
-     - File ownership boundaries
-     - Build verification commands
-3. Tasks should reference:
-   - PM requirements (`pm.md`)
-   - Architect design (`architect.md`)
-   - Worktree path for code changes
-   - Main repo path for task docs
+Do NOT include `"model": "..."` in the Task tool call.
 
-### 4. Spawn Teammates
-1. Load `SendMessage` tool (via ToolSearch).
-2. Each teammate receives:
-   - Their assigned area from architect design
-   - Worktree path and file ownership
-   - TDD mandate (RED → GREEN → REFACTOR)
-   - Build verification commands
-   - Instructions to write `dev-{N}.md` report when done
+### Step 3: Report Success
+After all teammates are spawned, report:
+```
+## Team Created: {team-name}
 
-### 5. Monitor
-1. Report to SVP: "Team '{slug}' created with {N} members."
-2. List each member and their assigned area.
-3. Suggest: "Use `/team-status {slug}` to monitor progress."
+| Teammate | Name | Role | Status |
+|----------|------|------|--------|
+| 1 | pm-1 | pm | Spawned |
+| 2 | architect-1 | architect | Spawned |
+| 3 | explorer-1 | explorer | Spawned |
 
-## After All Members Complete
-The lead (or SVP) should:
-1. `/team-status {slug}` to verify all done
-2. Merge worktrees → integrate branch
-3. Run QA + gate (subagents, not team members)
-4. `/team-stop {slug}` to clean up
+**tmux navigation**: Ctrl+B then arrow keys to switch panes
+
+**Next steps**:
+- Use SendMessage to communicate with teammates
+- Use TaskCreate/TaskUpdate to assign work
+- /team-status to check progress
+- /team-stop {team-name} to cleanup
+```
+
+## Agent Types (for --agents)
+| Agent | subagent_type | Capabilities |
+|-------|---------------|--------------|
+| pm | pm | Requirements, scope, risk (read-only) |
+| architect | architect | System design, component breakdown (read-only) |
+| explorer | explorer | Codebase search, file discovery (read-only) |
+| dev | general-purpose | Full implementation (read/write) |
+| qa | qa | E2E testing (read/write) |
+| security-reviewer | security-reviewer | Security audit (read-only) |
+
+**Note**: Use `general-purpose` for any agent that needs write access.
+
+## Examples
+
+```
+/team-start --agents pm,architect,explorer standby
+/team-start --agents dev,dev,dev my-feature
+/team-start --members 3 standby
+```
 
 ---
 
-SVP's request: $ARGUMENTS
+Request: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /team-start"
 
-cat > "$SKILLS_DIR/team-status/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/team-status/SKILL.md" <<'SKILL_EOF'
 ---
 name: team-status
 description: >
@@ -1213,7 +1244,7 @@ SKILL_EOF
 
 log "Created skill: /team-status"
 
-cat > "$SKILLS_DIR/team-stop/SKILL.md" << 'SKILL_EOF'
+cat >"$SKILLS_DIR/team-stop/SKILL.md" <<'SKILL_EOF'
 ---
 name: team-stop
 description: >
@@ -1240,7 +1271,7 @@ agent: team-lead
 3. Check all `dev-{N}.md` reports exist.
 4. List any incomplete tasks.
 
-### 2. Confirm with SVP
+### 2. Confirm with Master
 Present what will be cleaned up:
 ```
 ## Team Cleanup: {slug}
@@ -1257,7 +1288,7 @@ Resources to KEEP:
 Proceed? (awaiting confirmation)
 ```
 
-### 3. Clean Up (after SVP confirms)
+### 3. Clean Up (after Master confirms)
 1. Load `TeamDelete` tool (via ToolSearch) → delete team config.
 2. Remove worktrees:
    ```bash
@@ -1280,7 +1311,7 @@ Proceed? (awaiting confirmation)
 - Integrate branch: {kept/removed} based on merge status
 ```
 
-**NEVER auto-clean without SVP confirmation.**
+**NEVER auto-clean without Master confirmation.**
 
 ---
 
@@ -1293,9 +1324,9 @@ log "Created skill: /team-stop"
 # 6. Clean up old commands
 # ---------------------------------------------------------------------------
 if [ -d "$CLAUDE_DIR/commands" ] && [ "$(ls -A "$CLAUDE_DIR/commands" 2>/dev/null)" ]; then
-  warn "Found old ~/.claude/commands/ (deprecated)"
-  info "Skills in ~/.claude/skills/ now replace commands."
-  info "Remove old commands manually: rm -rf ~/.claude/commands/"
+	warn "Found old ~/.claude/commands/ (deprecated)"
+	info "Skills in ~/.claude/skills/ now replace commands."
+	info "Remove old commands manually: rm -rf ~/.claude/commands/"
 fi
 
 # ---------------------------------------------------------------------------
@@ -1307,16 +1338,16 @@ read -p "  Install? [y/N] " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-  if command -v brew &>/dev/null; then
-    brew install claude-squad 2>/dev/null && \
-    ln -sf "$(brew --prefix)/bin/claude-squad" "$(brew --prefix)/bin/cs" 2>/dev/null
-    log "claude-squad installed (alias: cs)"
-  else
-    curl -fsSL https://raw.githubusercontent.com/smtg-ai/claude-squad/main/install.sh | bash
-    log "claude-squad installed"
-  fi
+	if command -v brew &>/dev/null; then
+		brew install claude-squad 2>/dev/null &&
+			ln -sf "$(brew --prefix)/bin/claude-squad" "$(brew --prefix)/bin/cs" 2>/dev/null
+		log "claude-squad installed (alias: cs)"
+	else
+		curl -fsSL https://raw.githubusercontent.com/smtg-ai/claude-squad/main/install.sh | bash
+		log "claude-squad installed"
+	fi
 else
-  info "Skipped"
+	info "Skipped"
 fi
 
 # ---------------------------------------------------------------------------
@@ -1324,7 +1355,7 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║   Setup Complete — v5 · Skills + Agents + Teams · Opus 4.6 ║${NC}"
+echo -e "${BOLD}║   Setup Complete — v5 · Skills + Agents + Teams · Bedrock  ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  ${BOLD}Architecture:${NC}"
@@ -1333,7 +1364,7 @@ echo -e "    ${GREEN}Agents${NC} (~/.claude/agents/) → specialist subagents"
 echo -e "    Skills use ${DIM}context: fork${NC} + ${DIM}agent: team-lead${NC} for isolated execution"
 echo ""
 echo -e "  ${BOLD}Hierarchy:${NC}"
-echo -e "    ${YELLOW}👤 SVP${NC} → invokes /skills"
+echo -e "    ${YELLOW}👤 Master${NC} → invokes /skills"
 echo -e "    ${DIM} └──${NC} ${GREEN}🎖 team-lead${NC} ${DIM}(orchestrator agent)${NC}"
 echo -e "    ${DIM}      ├──${NC} ${BLUE}🏗 architect${NC} ${DIM}(design + gate)${NC}"
 echo -e "    ${DIM}      ├──${NC} ${CYAN}💻 dev ×1-5${NC} ${DIM}(TDD, worktrees)${NC}"

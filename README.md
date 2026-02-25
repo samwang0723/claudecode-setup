@@ -1,15 +1,15 @@
-# Claude Code — SVP Engineering Setup v5
+# Claude Code — Master Engineering Setup v5
 
-Skills + Agents architecture. All Opus 4.6. Git worktree isolation. Stateful tasks.
+Skills + Agents architecture. Git worktree isolation. Stateful tasks.
 
 ## What Changed (v4 → v5)
 
-| v4 (deprecated) | v5 |
-|---|---|
-| `~/.claude/commands/*.md` | `~/.claude/skills/*/SKILL.md` |
-| Commands = user-invoked only | Skills = `/name` or auto-triggered by Claude |
-| Flat markdown files | Folders with YAML frontmatter + supporting files |
-| Runs in main context | `context: fork` + `agent: team-lead` = isolated execution |
+| v4 (deprecated)              | v5                                                        |
+| ---------------------------- | --------------------------------------------------------- |
+| `~/.claude/commands/*.md`    | `~/.claude/skills/*/SKILL.md`                             |
+| Commands = user-invoked only | Skills = `/name` or auto-triggered by Claude              |
+| Flat markdown files          | Folders with YAML frontmatter + supporting files          |
+| Runs in main context         | `context: fork` + `agent: team-lead` = isolated execution |
 
 Your old `~/.claude/commands/` still work but are deprecated. Skills are the official path forward.
 
@@ -34,20 +34,11 @@ cd everything-claude-code
 ./install.sh typescript python golang
 ```
 
-### Global CLAUDE.md Template
-
-A sample global `~/.claude/CLAUDE.md` is provided at [`sample-claude.md`](sample-claude.md). Copy it and fill in your own details:
-
-```bash
-cp sample-claude.md ~/.claude/CLAUDE.md
-# Edit placeholders: {YOUR_NAME}, {YOUR_TITLE}, {COMPANY_NAME}, etc.
-```
-
 ## Architecture
 
 ```mermaid
 flowchart TB
-    SVP["👤 SVP"]
+    Master["👤 Master"]
 
     subgraph "Skills (~/.claude/skills/)"
         LS["/lead-start"]
@@ -74,16 +65,17 @@ flowchart TB
         EXP["🔭 explorer"]
     end
 
-    SVP -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS
+    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS
     LS & LSM & LC & RP & AR & INV & STR & SC & QS -->|"context:fork\nagent:team-lead"| TL
     TL --> ARCH & D1 & D2 & D3 & PM & QA & SEC & AG & EXP
 
-    style SVP fill:#f9a825,stroke:#f57f17,color:#000
+    style Master fill:#f9a825,stroke:#f57f17,color:#000
     style TL fill:#43a047,stroke:#2e7d32,color:#fff
 ```
 
 **How it works:**
-1. SVP invokes a skill (e.g., `/lead-start --devs 3 implement OAuth2 PKCE`)
+
+1. Master invokes a skill (e.g., `/lead-start --devs 3 implement OAuth2 PKCE`)
 2. Skill forks into isolated context with `agent: team-lead`
 3. team-lead orchestrates specialist agents through the pipeline
 4. Each agent works in git worktrees and writes status to `.claude/tasks/`
@@ -92,7 +84,8 @@ flowchart TB
 
 ```
 ~/.claude/
-├── settings.json
+├── settings.json                     ← AWS Bedrock config, permissions
+├── statusline.sh                     ← status bar hook
 ├── CLAUDE.md                         ← global context
 ├── agents/
 │   ├── team-lead.md                  ← orchestrator
@@ -112,23 +105,23 @@ flowchart TB
     ├── strategy/SKILL.md             ← strategic decisions
     ├── scope/SKILL.md                ← project scoping
     ├── quick-scan/SKILL.md           ← health check
-    ├── team-start/SKILL.md           ← spawn agent team (parallel)
-    ├── team-status/SKILL.md          ← monitor team progress
-    └── team-stop/SKILL.md            ← clean up team
+    ├── team-start/SKILL.md           ← spawn agent team (tmux)
+    ├── team-status/SKILL.md          ← check team progress
+    └── team-stop/SKILL.md            ← cleanup team
 ```
 
 ## Skill Frontmatter
 
-Every skill uses:
+Most pipeline skills use forked execution:
 
 ```yaml
 ---
 name: lead-start
 description: >
   When Claude should trigger this skill automatically.
-disable-model-invocation: true    # only /slash invocation, not auto
-context: fork                     # isolated execution
-agent: team-lead                  # delegate to team-lead agent
+disable-model-invocation: true # only /slash invocation, not auto
+context: fork # isolated execution
+agent: team-lead # delegate to team-lead agent
 ---
 ```
 
@@ -136,22 +129,39 @@ agent: team-lead                  # delegate to team-lead agent
 - `context: fork` — runs in isolated subagent (doesn't pollute main conversation)
 - `agent: team-lead` — uses the team-lead agent definition for execution
 
+**Exception**: `/team-start` executes directly in the main session (no fork) to ensure proper tmux pane creation via `TeamCreate` tool.
+
 ## Skills Reference
 
-| Skill | Trigger | What it does |
-|-------|---------|------|
+### Pipeline Skills
+
+| Skill                           | Trigger      | What it does                                       |
+| ------------------------------- | ------------ | -------------------------------------------------- |
 | `/lead-start [--devs N] <task>` | Start/resume | Creates task folder, worktrees, runs full pipeline |
-| `/lead-summary [focus]` | Status | Scans all tasks, reports progress + blockers |
-| `/lead-cleanup <slug>` | After merge | Removes worktrees + branches |
-| `/review-pr <context>` | PR review | Dev → peer → QA → security → arch gate |
-| `/arch-review <focus>` | Arch audit | Explorer → architect → security → PM |
-| `/investigate <issue>` | Incident | Logs → root cause → blast radius → fix |
-| `/strategy <decision>` | Decisions | PM → architect → security → recommendation |
-| `/scope <project>` | Planning | MoSCoW → design → security → go/no-go |
-| `/quick-scan [focus]` | Health check | Structure → tests → quality |
-| `/team-start [--members N] <task>` | Agent team | Spawns N parallel Claude instances |
-| `/team-status [team-name]` | Team monitor | Member progress, tasks, messages |
-| `/team-stop <team-name>` | Team cleanup | Removes team, worktrees, branches |
+| `/lead-summary [focus]`         | Status       | Scans all tasks, reports progress + blockers       |
+| `/lead-cleanup <slug>`          | After merge  | Removes worktrees + branches                       |
+| `/review-pr <context>`          | PR review    | Dev → peer → QA → security → arch gate             |
+| `/arch-review <focus>`          | Arch audit   | Explorer → architect → security → PM               |
+| `/investigate <issue>`          | Incident     | Logs → root cause → blast radius → fix             |
+| `/strategy <decision>`          | Decisions    | PM → architect → security → recommendation         |
+| `/scope <project>`              | Planning     | MoSCoW → design → security → go/no-go              |
+| `/quick-scan [focus]`           | Health check | Structure → tests → quality                        |
+
+### Agent Team Skills
+
+| Skill                                 | Trigger        | What it does                                      |
+| ------------------------------------- | -------------- | ------------------------------------------------- |
+| `/team-start [--agents a,b,c] <task>` | Spawn team     | Creates tmux panes with parallel Claude instances |
+| `/team-status <team-name>`            | Check progress | Shows member status, tasks, messages              |
+| `/team-stop <team-name>`              | Cleanup        | Terminates team and removes resources             |
+
+#### `/team-start` Examples
+
+```bash
+/team-start --agents pm,architect,explorer standby   # 3 agents in tmux, waiting
+/team-start --agents dev,dev,dev my-feature          # 3 devs for parallel work
+/team-start --members 3 standby                      # 3 generic teammates
+```
 
 ### `--devs N` Examples
 
@@ -168,49 +178,15 @@ agent: team-lead                  # delegate to team-lead agent
 Plan → Build (TDD ×N, worktrees) → Peer Review → Merge → QA e2e → Gate → Done
 ```
 
-| Phase | Who | Where | Output |
-|-------|-----|-------|--------|
-| Plan | pm + architect | main repo | `pm.md`, `architect.md` |
-| Build (TDD) | dev ×N parallel | `.worktrees/{slug}/dev-{N}/` | `dev-{N}.md` |
-| Peer Review | devs cross-review | each other's worktrees | `peer-review.md` |
-| Merge | team-lead | → `.worktrees/{slug}/integrate/` | merge commits |
-| QA | qa | `.worktrees/{slug}/integrate/` | `qa.md` |
-| Gate | security + architect | `.worktrees/{slug}/integrate/` | `security.md`, `arch-gate.md` |
-| Report | team-lead | main repo | `summary.md` |
-
-## Agent Teams (Experimental)
-
-Agent Teams spawn **separate Claude Code instances** that work in true parallel. Each teammate has its own context window and communicates via inboxes.
-
-### When to Use Which
-
-| | Subagents (`/lead-start`) | Agent Teams (`/team-start`) |
-|---|---|---|
-| **Execution** | Within single session | Separate Claude instances |
-| **Context** | Shared context window | Independent per member |
-| **Communication** | Return results to parent | Direct messaging |
-| **Best for** | Orchestration, reviews, sequential | Embarrassingly parallel work |
-| **Cost** | Lower (shared context) | Higher (N × full context) |
-
-### Team Workflow
-
-```bash
-# Spawn a 3-member team for parallel implementation
-/team-start --members 3 refactor payment processing module
-
-# Monitor progress
-/team-status payment-processing-module
-
-# After all members complete → merge, QA, gate (uses subagents)
-# Clean up
-/team-stop payment-processing-module
-```
-
-### Display Modes
-
-Configure `teammateMode` in `settings.json`:
-- `"in-process"` (default) — All teammates in main terminal. `Shift+Down` to cycle.
-- `"tmux"` — Each teammate gets own pane. Requires tmux or iTerm2.
+| Phase       | Who                  | Where                            | Output                        |
+| ----------- | -------------------- | -------------------------------- | ----------------------------- |
+| Plan        | pm + architect       | main repo                        | `pm.md`, `architect.md`       |
+| Build (TDD) | dev ×N parallel      | `.worktrees/{slug}/dev-{N}/`     | `dev-{N}.md`                  |
+| Peer Review | devs cross-review    | each other's worktrees           | `peer-review.md`              |
+| Merge       | team-lead            | → `.worktrees/{slug}/integrate/` | merge commits                 |
+| QA          | qa                   | `.worktrees/{slug}/integrate/`   | `qa.md`                       |
+| Gate        | security + architect | `.worktrees/{slug}/integrate/`   | `security.md`, `arch-gate.md` |
+| Report      | team-lead            | main repo                        | `summary.md`                  |
 
 ## Task State
 
@@ -239,7 +215,7 @@ your-project/
 ## Resume Flow
 
 ```
-SVP: /lead-start oauth2-pkce
+Master: /lead-start oauth2-pkce
   ↓
 team-lead reads .claude/tasks/oauth2-pkce/_status.md
   ↓
@@ -254,19 +230,19 @@ dev works in .worktrees/oauth2-pkce/dev-3/
 
 ## Permissions
 
-| ✅ Auto-approved | 🚫 Blocked |
-|---|---|
-| Read, Write, Edit, Glob, Grep, Skill | .env / .pem / .key files |
-| git, kubectl get/logs, docker ps/logs | rm -rf, sudo |
-| terraform plan/show | kubectl delete/apply |
-| cargo test, go test, rspec, vitest | terraform apply/destroy |
-| | docker rm, helm upgrade/uninstall |
+| ✅ Auto-approved                      | 🚫 Blocked                        |
+| ------------------------------------- | --------------------------------- |
+| Read, Write, Edit, Glob, Grep, Skill  | .env / .pem / .key files          |
+| git, kubectl get/logs, docker ps/logs | rm -rf, sudo                      |
+| terraform plan/show                   | kubectl delete/apply              |
+| cargo test, go test, rspec, vitest    | terraform apply/destroy           |
+| mcp\_\_pencil                         | docker rm, helm upgrade/uninstall |
 
 ## Uninstall
 
 ```bash
 rm -rf ~/.claude/agents ~/.claude/skills
-rm -f ~/.claude/settings.json ~/.claude/CLAUDE.md
+rm -f ~/.claude/settings.json ~/.claude/statusline.sh ~/.claude/CLAUDE.md
 # Restore backups if they exist
 mv ~/.claude/settings.json.bak ~/.claude/settings.json 2>/dev/null
 mv ~/.claude/CLAUDE.md.bak ~/.claude/CLAUDE.md 2>/dev/null
