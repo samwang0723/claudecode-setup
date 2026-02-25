@@ -163,7 +163,11 @@ cat > "$SETTINGS_FILE" << 'EOF'
     ]
   },
   "skipDangerousModePermissionPrompt": true,
-  "teammateMode": "in-process"
+  "teammateMode": "in-process",
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  },
 }
 EOF
 log "Created settings.json (model: opus, agent teams enabled)"
