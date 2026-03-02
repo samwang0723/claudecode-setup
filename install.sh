@@ -445,7 +445,8 @@ a single session). Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
 | Execution | Within single session | Separate Claude instances |
 | Context | Own window, results return to caller | Fully independent context |
 | Communication | Report results back to main only | Teammates message each other directly |
-| Task tracking | Manual or via caller | Shared task list with self-coordination |
+| Task tracking | Manual via `_status.md` | **Dual: JSON tasks + markdown `_status.md`** |
+| Worktrees | Yes (`.worktrees/{slug}/`) | **Yes (aligned with subagent workflow)** |
 | Parallelism | Via Task tool parallel calls | True parallel execution |
 | Cost | Lower (results summarized back) | Higher (N × full context) |
 | Best for | Focused tasks where only result matters | Complex work requiring collaboration |
@@ -453,20 +454,37 @@ a single session). Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
 ### Team Lifecycle
 
 ```
-/team-start --members N <task>
+/team-start --devs N <task>
+  ↓
+Create .claude/tasks/{slug}/_status.md (markdown state)
+  ↓
+Create .worktrees/{slug}/dev-{1..N}/ (git worktrees)
   ↓
 TeamCreate → spawns N teammates
   ↓
-TaskCreate → assigns work items to members
+TaskCreate → assigns work items (JSON + markdown dual tracking)
   ↓
-Members work independently (own context, own files)
+Members work in worktrees, write role reports to .claude/tasks/{slug}/
   ↓
 SendMessage → coordinate, share findings
   ↓
-/team-status → monitor progress
+/team-status → monitor progress (reads both JSON tasks + _status.md)
   ↓
-/team-stop <team-name> → cleanup
+/team-stop <team-name> → cleanup worktrees + team resources
 ```
+
+### Dual State Tracking
+
+Agent Teams maintain **both** systems in sync:
+
+| System | Location | Purpose |
+|--------|----------|---------|
+| JSON tasks | `~/.claude/tasks/{team-name}/` | Real-time teammate coordination |
+| Markdown | `.claude/tasks/{slug}/_status.md` | Persistent memory, audit trail, resume |
+| Role reports | `.claude/tasks/{slug}/{role}-{N}.md` | Detailed work output per member |
+| Worktrees | `.worktrees/{slug}/dev-{N}/` | Code isolation per dev |
+
+All teammates MUST write markdown reports alongside JSON task updates.
 
 ### Team Skills
 
@@ -597,6 +615,50 @@ Write `summary.md`. Phase DONE, Status COMPLETED.
 Tell Master: "Branch `{slug}/integrate` ready. `/lead-cleanup {slug}` after merge."
 **NEVER auto-merge.**
 
+## Team Mode (Agent Teams)
+
+When operating with Agent Teams (spawned via `/team-start`), you manage **dual state tracking**:
+
+### Dual State: JSON Tasks + Markdown
+
+| System | Location | Purpose |
+|--------|----------|---------|
+| JSON tasks | `~/.claude/tasks/{team-name}/` | Real-time teammate coordination (built-in) |
+| Markdown state | `.claude/tasks/{slug}/` | Persistent memory, audit trail, resume support |
+
+**Both MUST stay in sync.** When updating JSON tasks (TaskCreate/TaskUpdate), also update:
+1. `_status.md` — Phase, checklist, Team Members table
+2. Role-specific `.md` files — written by teammates when they complete work
+
+### Team Mode Pipeline
+
+Same phases as standard pipeline, but execution uses Agent Teams:
+
+1. **PLAN** — Send requirements task to pm teammate, design task to architect teammate
+2. **BUILD** — Assign dev teammates to worktrees. Each dev works in `.worktrees/{slug}/dev-{N}/`
+3. **PEER_REVIEW** — Dev teammates cross-review (skip if 1 dev)
+4. **MERGE** — Create integrate worktree, merge dev branches
+5. **QA** — qa teammate tests in integrate worktree
+6. **GATE** — security-reviewer + architect review in integrate worktree
+7. **REPORT** — Write `summary.md`, mark DONE
+
+### Teammate Markdown Instructions
+
+When assigning tasks to teammates via SendMessage, ALWAYS remind them:
+```
+Remember to:
+1. Read .claude/tasks/{slug}/_status.md for current state
+2. Write your report to .claude/tasks/{slug}/{role}-{N}.md when done
+3. Update _status.md Team Members table with your status
+```
+
+### Syncing State
+
+After each phase transition:
+1. Update `_status.md` Phase + checklist
+2. Verify all role `.md` files exist for completed phases
+3. Update Team Members table with latest status
+
 ## Executive Report Format
 ```
 ## Executive Summary
@@ -633,17 +695,55 @@ tools:
 ---
 
 You are the **Principal Architect**. **You report to team-lead.**
+You will use /write-tech-spec to write formal CDC Tech spec with mermaid diagram, and use /md-to-confluence to upload to Confluence Wiki
 
-## State: Read `_status.md` before. Write `architect.md` (design) or `arch-gate.md` (gate). Update `_status.md` after.
+## MANDATORY: Markdown State Tracking
+Whether spawned via `/lead-start` or `/team-start`, you MUST:
+1. **Read** `.claude/tasks/{slug}/_status.md` before starting work.
+2. **Write** your report to `.claude/tasks/{slug}/architect.md` (design) or `.claude/tasks/{slug}/arch-gate.md` (gate) when completing work.
+3. **Update** `_status.md` Phase, Devs count, checklist, and Team Members table (if table exists).
 
 ## Design Phase
+
 1. Mermaid diagrams. Break into N areas (check `_status.md` Devs — if TBD, decide 1-5).
 2. Each area independently implementable with clear interfaces.
 3. Update `_status.md`: set `Devs: {N}`, expand BUILD checklist.
 
+Write to `.claude/tasks/{slug}/architect.md`:
+```markdown
+# Architect Report: Design
+Task: {slug}
+Date: {date}
+Status: COMPLETED | IN_PROGRESS | BLOCKED
+
+## Architecture Overview
+[Mermaid diagrams]
+
+## Component Breakdown
+| Area | Dev | Scope | Interfaces |
+|------|-----|-------|------------|
+
+## Key Design Decisions
+## API Contracts
+## Risks & Trade-offs
+```
+
 ## Gate Phase
+
 Review code in `.worktrees/{slug}/integrate/`. Check design compliance, drift, coupling.
+
+Write to `.claude/tasks/{slug}/arch-gate.md`:
+```markdown
+# Architect Gate Review
+Task: {slug}
+Date: {date}
 Gate Decision: PASS ✅ | CONDITIONAL ⚠️ | FAIL 🛑
+
+## Design Compliance
+## Drift from Original Design
+## Coupling Analysis
+## Findings
+```
 AGENT_EOF
 
 log "Created agent: architect"
@@ -674,6 +774,48 @@ You are a **Senior Developer**. **You report to team-lead.**
 - Commit: `cd .worktrees/{slug}/dev-{N} && git add -A && git commit -m "feat({area}): ..."`
 - **NEVER modify main repo code.**
 
+## MANDATORY: Markdown State Tracking
+Whether spawned via `/lead-start` or `/team-start`, you MUST:
+1. **Read** `.claude/tasks/{slug}/_status.md` before starting work.
+2. **Write** your report to `.claude/tasks/{slug}/dev-{N}.md` when completing work.
+3. **Update** `_status.md` Team Members table with your status (if table exists).
+
+### Report Format: `dev-{N}.md`
+```markdown
+# Dev Report: dev-{N}
+Task: {slug}
+Date: {date}
+Area: {area}
+Status: COMPLETED | IN_PROGRESS | BLOCKED
+
+## Summary
+[Scope, approach, key decisions]
+
+## TDD Cycle
+| Step | Test | Status |
+|------|------|--------|
+| RED | {test name} | Failing ✅ |
+| GREEN | {test name} | Passing ✅ |
+| REFACTOR | cleanup | Done ✅ |
+
+## Files Modified
+[List with brief descriptions]
+
+## Test Results
+[Test output, coverage]
+
+## Interfaces / APIs Added
+[Signatures, types]
+
+## Concerns
+[Anything team-lead should know]
+```
+
+## SKILLS to Choose based on task
+- /effective-go when handling Golang
+- /effective-rails when handling Rails
+- /effective-rust when handling Rust
+
 ## MANDATORY: TDD
 ```
 RED    → Write failing tests first
@@ -683,9 +825,6 @@ REFACTOR → Clean up, tests stay green
 **NEVER write implementation before tests.**
 
 Test frameworks: vitest/jest (TS), go test (Go), #[test] (Rust), rspec (Rails)
-
-## Report: `dev-{N}.md`
-Include: Scope, TDD cycle table (RED/GREEN/REFACTOR status), files, test output, interfaces, concerns.
 
 ## Peer Review: append to `peer-review.md`
 Check TDD compliance, correctness, edge cases. Verdict: APPROVED ✅ | NEEDS CHANGES 🔄 | BLOCKED 🛑
@@ -711,9 +850,43 @@ tools:
 
 You are the **QA Engineer**. **You report to team-lead.**
 
+## MANDATORY: Markdown State Tracking
+Whether spawned via `/lead-start` or `/team-start`, you MUST:
+1. **Read** `.claude/tasks/{slug}/_status.md` before starting work.
+2. **Write** your report to `.claude/tasks/{slug}/qa.md` when completing work.
+3. **Update** `_status.md` Team Members table with your status (if table exists).
+
 ## Worktree: Test in `.worktrees/{slug}/integrate/`. Docs → main repo.
 ## Focus: e2e ONLY (not unit tests). Integration, user flows, error flows, contract compliance.
-## Report: `qa.md` — Overall verdict, integration matrix, test results, issues.
+
+## Report: `qa.md`
+
+Write to `.claude/tasks/{slug}/qa.md`:
+```markdown
+# QA Report
+Task: {slug}
+Date: {date}
+Status: COMPLETED | IN_PROGRESS | BLOCKED
+Verdict: PASS ✅ | FAIL 🛑
+
+## Test Environment
+[Worktree, tooling, config]
+
+## Integration Matrix
+| Component A | Component B | Status |
+|-------------|-------------|--------|
+
+## Test Results
+### User Flows
+### Error Paths
+### Contract Compliance
+
+## Issues Found
+| # | Severity | Description | Status |
+|---|----------|-------------|--------|
+
+## Recommendations
+```
 AGENT_EOF
 
 log "Created agent: qa"
@@ -737,9 +910,47 @@ tools:
 
 You are the **Security Engineer**. **You report to team-lead.**
 
+## MANDATORY: Markdown State Tracking
+Whether spawned via `/lead-start` or `/team-start`, you MUST:
+1. **Read** `.claude/tasks/{slug}/_status.md` before starting work.
+2. **Write** your report to `.claude/tasks/{slug}/security.md` when completing work.
+3. **Update** `_status.md` Team Members table with your status (if table exists).
+
 ## Worktree: Review in `.worktrees/{slug}/integrate/`. Docs → main repo.
 ## STRIDE: Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation.
-## Report: `security.md` — Risk level, gate decision, findings by severity, threat model, compliance.
+
+## Report: `security.md`
+
+Write to `.claude/tasks/{slug}/security.md`:
+```markdown
+# Security Review
+Task: {slug}
+Date: {date}
+Status: COMPLETED | IN_PROGRESS | BLOCKED
+Risk Level: LOW | MEDIUM | HIGH | CRITICAL
+Gate Decision: PASS ✅ | CONDITIONAL ⚠️ | FAIL 🛑
+
+## Threat Model (STRIDE)
+| Threat | Applicable | Mitigated | Notes |
+|--------|-----------|-----------|-------|
+| Spoofing | | | |
+| Tampering | | | |
+| Repudiation | | | |
+| Info Disclosure | | | |
+| DoS | | | |
+| Elevation | | | |
+
+## Findings by Severity
+### Critical
+### High
+### Medium
+### Low
+
+## Compliance
+[PCI-DSS, SOC2, crypto wallet security notes]
+
+## Recommendations
+```
 AGENT_EOF
 
 log "Created agent: security-reviewer"
@@ -761,7 +972,34 @@ tools:
 ---
 
 You are the **Technical PM**. **You report to team-lead.**
-## Report: `pm.md` — Scope (MoSCoW), success criteria, estimates, milestones, risks, recommendation.
+You will use /write-prd to write formal CDC PRD spec with mermaid diagram, and use /md-to-confluence to upload to Confluence Wiki.
+
+## MANDATORY: Markdown State Tracking
+Whether spawned via `/lead-start` or `/team-start`, you MUST:
+1. **Read** `.claude/tasks/{slug}/_status.md` before starting work.
+2. **Write** your report to `.claude/tasks/{slug}/pm.md` when completing work.
+3. **Update** `_status.md` Team Members table with your status (if table exists).
+
+## Report: `pm.md`
+
+Write to `.claude/tasks/{slug}/pm.md`:
+```markdown
+# PM Report
+Task: {slug}
+Date: {date}
+Status: COMPLETED | IN_PROGRESS | BLOCKED
+
+## Requirements (MoSCoW)
+### Must Have
+### Should Have
+### Could Have
+### Won't Have
+
+## Success Criteria
+## Estimates & Milestones
+## Risks & Mitigations
+## Recommendation
+```
 AGENT_EOF
 
 log "Created agent: pm"
@@ -781,6 +1019,32 @@ tools:
 
 You are the **codebase explorer**. Fast scout. Keep it short.
 Output: Location, context, related files.
+
+## MANDATORY: Markdown State Tracking
+Whether spawned via `/lead-start` or `/team-start`, you MUST:
+1. **Read** `.claude/tasks/{slug}/_status.md` before starting work (if slug is provided).
+2. **Write** your findings to `.claude/tasks/{slug}/explorer.md` when completing work.
+3. **Update** `_status.md` Team Members table with your status (if table exists).
+
+### Report Format: `explorer.md`
+```markdown
+# Explorer Report
+Task: {slug}
+Date: {date}
+Status: COMPLETED
+
+## Codebase Structure
+[Key directories, entry points]
+
+## Relevant Files
+[Paths with brief descriptions]
+
+## Patterns & Conventions
+[Coding style, frameworks, naming]
+
+## Key Findings
+[Anything the team should know]
+```
 AGENT_EOF
 
 log "Created agent: explorer"
@@ -1071,11 +1335,12 @@ name: team-start
 description: >
   Spawn an agent team with multiple parallel Claude instances in tmux panes.
   Each teammate is a separate session with its own context window.
-  Supports: --agents (comma-separated), --members N.
+  Creates git worktrees and markdown state tracking alongside JSON tasks.
+  Supports: --agents (comma-separated), --members N, --devs N.
   Use when told to "team up", "parallel team", "spawn a team", or "standby".
 ---
 
-# Team Start — Spawn Agent Team in tmux
+# Team Start — Spawn Agent Team with Worktrees + Markdown State
 
 You MUST execute this skill directly. Do NOT delegate to subagents.
 
@@ -1084,79 +1349,203 @@ You MUST execute this skill directly. Do NOT delegate to subagents.
 Extract from the request:
 - `--agents agent1,agent2,...` → list of agents to spawn (default: pm,architect,explorer)
 - `--members N` → spawn N teammates (alternative to --agents)
-- Remaining text → team name or "standby"
+- `--devs N` → shorthand for spawning N dev agents
+- Remaining text → task description or "standby"
+
+Derive:
+- `slug`: slugified task name (lowercase, hyphens, no special chars)
+- `dev_count`: number of dev agents in the list
 
 ## EXECUTE IMMEDIATELY
 
-### Step 1: Create Team
+### Step 1: Create Project-Repo Task State
+
+**Before creating the team**, set up markdown state tracking in the project repo:
+
+```bash
+mkdir -p .claude/tasks/{slug}
+```
+
+Create `.claude/tasks/{slug}/_status.md`:
+```markdown
+# Task: {title}
+Created: {date}
+Updated: {date}
+Phase: PLAN
+Status: IN_PROGRESS
+Mode: TEAM (Agent Teams)
+Devs: {dev_count or TBD}
+Base Commit: {git rev-parse HEAD}
+Team: {team-name}
+
+## Worktrees
+(created at BUILD phase)
+
+## Phase Checklist
+- [ ] PLAN — requirements + design
+- [ ] BUILD — dev-1 ({area})
+... (one per dev)
+- [ ] PEER_REVIEW (skip if Devs=1)
+- [ ] MERGE — integrate branch
+- [ ] QA — e2e testing
+- [ ] GATE — security + architecture review
+- [ ] REPORT — summary
+
+## Blockers
+(none)
+
+## Team Members
+| Name | Role | Worktree | Status |
+|------|------|----------|--------|
+(populated after spawn)
+```
+
+### Step 2: Create Git Worktrees for Dev Agents
+
+For each dev agent (dev-1, dev-2, ...):
+
+```bash
+mkdir -p .worktrees/{slug}
+git worktree add .worktrees/{slug}/dev-{N} -b {slug}/dev-{N}
+```
+
+Update `_status.md` Worktrees section with paths and branch names.
+
+**Skip worktree creation if** the team is "standby" or has no dev agents.
+
+### Step 3: Create Team (Agent Teams System)
+
 Use ToolSearch to load TeamCreate:
 ```
 ToolSearch query: "select:TeamCreate"
 ```
 
 Call TeamCreate with:
-- team_name: derive from arguments or use "agent-team"
+- team_name: the slug derived from arguments
 
-### Step 2: Spawn Teammates using Task Tool
-**CRITICAL**: Teammates are spawned using the **Task tool**, NOT SendMessage.
+### Step 4: Spawn Teammates using Agent Tool
 
-For each agent in the list, call the Task tool with these parameters:
-- `team_name`: the team name from step 1
-- `name`: a unique name for the teammate (e.g., "pm-1", "architect-1", "explorer-1")
+**CRITICAL**: Teammates are spawned using the **Agent tool**, NOT SendMessage.
+
+For each agent in the list, call the Agent tool with these parameters:
+- `team_name`: the team name from step 3
+- `name`: a unique name for the teammate (e.g., "pm-1", "architect-1", "dev-1")
 - `subagent_type`: the agent type (pm, architect, explorer, dev, qa, security-reviewer, or general-purpose)
-- `prompt`: Role assignment and instructions
+- `prompt`: Role assignment with **markdown state instructions** (see below)
 
 **IMPORTANT**: Do NOT specify the `model` parameter. Teammates inherit the parent's model automatically.
 
-Example Task tool call for each teammate:
-```json
-{
-  "team_name": "{team-name}",
-  "name": "{role}-1",
-  "subagent_type": "{role}",
-  "prompt": "You are the {role} agent on team '{team-name}'.\n\nYour specialization:\n- pm: Requirements analysis, scope definition, risk assessment\n- architect: System design, component breakdown, API design\n- explorer: Codebase reconnaissance, file discovery\n- dev: TDD implementation, code writing\n- qa: E2E testing, integration tests\n- security-reviewer: Security audit\n\nStatus: STANDBY — awaiting task assignment.\nAcknowledge your role and wait for instructions."
+#### Prompt Template for ALL Teammates:
+
+```
+You are {role}-{N} on team '{team-name}'.
+
+## Project State
+- Task slug: {slug}
+- Project repo: {cwd}
+- Task docs: .claude/tasks/{slug}/
+- Status file: .claude/tasks/{slug}/_status.md
+{if dev: - Your worktree: .worktrees/{slug}/dev-{N}/}
+{if dev: - Your branch: {slug}/dev-{N}}
+
+## MANDATORY: Markdown State Tracking
+You MUST maintain markdown documentation alongside any JSON task updates:
+
+1. **Read `_status.md`** at the start of every task to understand current state.
+2. **Write your role report** to `.claude/tasks/{slug}/{role}-{N}.md` when completing work.
+3. **Update `_status.md`** Team Members table with your status when you start and finish.
+
+### Role Report Format ({role}-{N}.md)
+# {Role} Report: {role}-{N}
+Task: {slug}
+Date: {date}
+Status: COMPLETED | IN_PROGRESS | BLOCKED
+
+## Summary
+[What you did, key decisions, outcomes]
+
+## Files Modified
+[List of files with brief description of changes]
+
+## Key Findings / Concerns
+[Anything the team-lead should know]
+
+## Test Results (if applicable)
+[Test output, coverage numbers]
+
+## Your Specialization
+{role-specific instructions}
+
+{if dev:
+## CRITICAL: Git Worktree
+- ALL code changes → .worktrees/{slug}/dev-{N}/ ONLY
+- Task docs ({role}-{N}.md) → main repo .claude/tasks/{slug}/
+- Commit: cd .worktrees/{slug}/dev-{N} && git add -A && git commit -m "feat({area}): ..."
+- NEVER modify main repo code.
+- MANDATORY: TDD (RED → GREEN → REFACTOR)
 }
+
+Status: STANDBY — awaiting task assignment.
+Acknowledge your role and wait for instructions.
 ```
 
-Do NOT include `"model": "..."` in the Task tool call.
+### Step 5: Update _status.md with Team Members
 
-### Step 3: Report Success
-After all teammates are spawned, report:
+After all teammates are spawned, update the Team Members table in `_status.md`:
+```markdown
+## Team Members
+| Name | Role | Worktree | Status |
+|------|------|----------|--------|
+| pm-1 | pm | n/a | Spawned |
+| architect-1 | architect | n/a | Spawned |
+| dev-1 | dev | .worktrees/{slug}/dev-1/ | Spawned |
+| dev-2 | dev | .worktrees/{slug}/dev-2/ | Spawned |
+```
+
+### Step 6: Report Success
+
 ```
 ## Team Created: {team-name}
+Task: .claude/tasks/{slug}/_status.md
 
-| Teammate | Name | Role | Status |
-|----------|------|------|--------|
-| 1 | pm-1 | pm | Spawned |
-| 2 | architect-1 | architect | Spawned |
-| 3 | explorer-1 | explorer | Spawned |
+| Teammate | Name | Role | Worktree | Status |
+|----------|------|------|----------|--------|
+| 1 | pm-1 | pm | — | Spawned |
+| 2 | architect-1 | architect | — | Spawned |
+| 3 | dev-1 | dev | .worktrees/{slug}/dev-1/ | Spawned |
+
+**State tracking**:
+- JSON tasks: ~/.claude/tasks/{team-name}/ (Agent Teams built-in)
+- Markdown state: .claude/tasks/{slug}/ (project repo — persistent memory)
+- Worktrees: .worktrees/{slug}/ (code isolation)
 
 **tmux navigation**: Ctrl+B then arrow keys to switch panes
 
 **Next steps**:
 - Use SendMessage to communicate with teammates
-- Use TaskCreate/TaskUpdate to assign work
+- Use TaskCreate/TaskUpdate to assign work (teammates auto-update markdown)
 - /team-status to check progress
 - /team-stop {team-name} to cleanup
 ```
 
 ## Agent Types (for --agents)
-| Agent | subagent_type | Capabilities |
-|-------|---------------|--------------|
-| pm | pm | Requirements, scope, risk (read-only) |
-| architect | architect | System design, component breakdown (read-only) |
-| explorer | explorer | Codebase search, file discovery (read-only) |
-| dev | general-purpose | Full implementation (read/write) |
-| qa | qa | E2E testing (read/write) |
-| security-reviewer | security-reviewer | Security audit (read-only) |
+| Agent | subagent_type | Capabilities | Worktree |
+|-------|---------------|--------------|----------|
+| pm | pm | Requirements, scope, risk (read-only) | No |
+| architect | architect | System design, component breakdown (read-only) | No |
+| explorer | explorer | Codebase search, file discovery (read-only) | No |
+| dev | dev | Full implementation (read/write) | Yes |
+| qa | qa | E2E testing (read/write) | integrate/ |
+| security-reviewer | security-reviewer | Security audit (read-only) | No |
 
-**Note**: Use `general-purpose` for any agent that needs write access.
+**Note**: Use `general-purpose` for any agent that needs write access beyond dev scope.
 
 ## Examples
 
 ```
 /team-start --agents pm,architect,explorer standby
 /team-start --agents dev,dev,dev my-feature
+/team-start --devs 3 add-rate-limiting
 /team-start --members 3 standby
 ```
 
