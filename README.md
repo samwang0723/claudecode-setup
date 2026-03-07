@@ -10,6 +10,9 @@ Skills + Agents architecture. Git worktree isolation. Stateful tasks.
 | Commands = user-invoked only | Skills = `/name` or auto-triggered by Claude              |
 | Flat markdown files          | Folders with YAML frontmatter + supporting files          |
 | Runs in main context         | `context: fork` + `agent: team-lead` = isolated execution |
+| settings.json full overwrite | jq deep merge (user values preserved)                     |
+| Appends to CLAUDE.md         | Separate `rules/kit/CLAUDE-kit.md` (auto-loaded)          |
+| Manual uninstall             | `./install.sh --revert` one-click restore                 |
 
 Your old `~/.claude/commands/` still work but are deprecated. Skills are the official path forward.
 
@@ -18,6 +21,18 @@ Your old `~/.claude/commands/` still work but are deprecated. Skills are the off
 ```bash
 chmod +x install.sh && ./install.sh
 ```
+
+Requires `jq` (auto-installed by the script if missing) and the Claude Code CLI.
+
+### Uninstall
+
+```bash
+./install.sh --revert
+```
+
+This reads the manifest, deletes all kit-created files, restores backups from `~/.claude/.kit-backup/`, and strips any legacy markers from CLAUDE.md.
+
+`.claude/tasks/` folders in your projects are kept — they're your documentation.
 
 ### Everything Claude Code Plugin
 
@@ -84,9 +99,12 @@ flowchart TB
 
 ```
 ~/.claude/
-├── settings.json                     ← AWS Bedrock config, permissions
+├── settings.json                     ← merged with kit defaults (user values win)
 ├── statusline.sh                     ← status bar hook
-├── CLAUDE.md                         ← global context
+├── CLAUDE.md                         ← global context (kit adds @reference only)
+├── rules/
+│   └── kit/
+│       └── CLAUDE-kit.md             ← kit docs (auto-loaded by Claude Code)
 ├── agents/
 │   ├── team-lead.md                  ← orchestrator
 │   ├── architect.md                  ← design + gate
@@ -95,20 +113,52 @@ flowchart TB
 │   ├── security-reviewer.md          ← security gate
 │   ├── pm.md                         ← requirements
 │   └── explorer.md                   ← scout
-└── skills/
-    ├── lead-start/SKILL.md           ← start or resume task
-    ├── lead-summary/SKILL.md         ← progress overview
-    ├── lead-cleanup/SKILL.md         ← remove worktrees
-    ├── review-pr/SKILL.md            ← PR review
-    ├── arch-review/SKILL.md          ← architecture audit
-    ├── investigate/SKILL.md          ← incident investigation
-    ├── strategy/SKILL.md             ← strategic decisions
-    ├── scope/SKILL.md                ← project scoping
-    ├── quick-scan/SKILL.md           ← health check
-    ├── team-start/SKILL.md           ← spawn agent team (tmux)
-    ├── team-status/SKILL.md          ← check team progress
-    └── team-stop/SKILL.md            ← cleanup team
+├── skills/
+│   ├── lead-start/SKILL.md           ← start or resume task
+│   ├── lead-summary/SKILL.md         ← progress overview
+│   ├── lead-cleanup/SKILL.md         ← remove worktrees
+│   ├── review-pr/SKILL.md            ← PR review
+│   ├── arch-review/SKILL.md          ← architecture audit
+│   ├── investigate/SKILL.md          ← incident investigation
+│   ├── strategy/SKILL.md             ← strategic decisions
+│   ├── scope/SKILL.md                ← project scoping
+│   ├── quick-scan/SKILL.md           ← health check
+│   ├── team-start/SKILL.md           ← spawn agent team (tmux)
+│   ├── team-status/SKILL.md          ← check team progress
+│   └── team-stop/SKILL.md            ← cleanup team
+├── .kit-manifest                     ← tracks all created/modified files
+└── .kit-backup/                      ← pre-install backups
 ```
+
+## Settings Merge Strategy
+
+The installer uses `jq` deep merge instead of overwriting `settings.json`. Kit defaults serve as the base; your existing values are overlaid on top.
+
+| Field type | Strategy |
+|-----------|----------|
+| Scalars (`model`, `cleanupPeriodDays`) | Kit provides defaults; user value wins if present |
+| Objects (`env`, `hooks`) | Deep merge; user values win per key |
+| Arrays (`permissions.allow`, `permissions.deny`) | Union + deduplicate |
+
+Three-stage validation ensures the output is always valid JSON:
+
+1. **Pre-merge** — validates `KIT_DEFAULTS` before any operation
+2. **Post-merge** — validates the jq merge output before writing
+3. **Final gate** — validates the on-disk file; restores backup on failure
+
+## Backup & Revert
+
+Every install creates a manifest (`~/.claude/.kit-manifest`) tracking all files created or modified. Pre-existing files are backed up to `~/.claude/.kit-backup/`.
+
+```bash
+./install.sh --revert    # one-click restore
+```
+
+Revert reads the manifest to:
+- Delete all kit-created files (`agents/`, `skills/`, `rules/kit/`, `statusline.sh`)
+- Restore backed-up files (`settings.json`, `CLAUDE.md`) from `.kit-backup/`
+- Strip legacy CLAUDE.md markers if found from previous installs
+- Clean up empty directories, manifest, and backup dir
 
 ## Skill Frontmatter
 
@@ -236,18 +286,4 @@ dev works in .worktrees/oauth2-pkce/dev-3/
 | git, kubectl get/logs, docker ps/logs | rm -rf, sudo                      |
 | terraform plan/show                   | kubectl delete/apply              |
 | cargo test, go test, rspec, vitest    | terraform apply/destroy           |
-| mcp\_\_pencil                         | docker rm, helm upgrade/uninstall |
-
-## Uninstall
-
-```bash
-rm -rf ~/.claude/agents ~/.claude/skills
-rm -f ~/.claude/settings.json ~/.claude/statusline.sh ~/.claude/CLAUDE.md
-# Restore backups if they exist
-mv ~/.claude/settings.json.bak ~/.claude/settings.json 2>/dev/null
-mv ~/.claude/CLAUDE.md.bak ~/.claude/CLAUDE.md 2>/dev/null
-# Old commands (if still present)
-rm -rf ~/.claude/commands/
-```
-
-`.claude/tasks/` folders in your projects are kept — they're your documentation.
+| mcp\_\_pencil, rtk, fd               | docker rm, helm upgrade/uninstall |
