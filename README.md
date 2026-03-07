@@ -1,4 +1,4 @@
-# Claude Code — Master Engineering Setup v5
+# Claude Code — Master Engineering Setup v6
 
 Skills + Agents architecture. Git worktree isolation. Stateful tasks.
 
