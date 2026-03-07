@@ -7,6 +7,8 @@ set -euo pipefail
 # All Opus 4.6 · TDD Pipeline
 # ============================================================================
 
+KIT_VERSION="6.0.0"
+
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -20,6 +22,17 @@ log() { echo -e "${GREEN}[✓]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 err() { echo -e "${RED}[✗]${NC} $1"; }
 info() { echo -e "${BLUE}[→]${NC} $1"; }
+
+TOTAL_STEPS=8
+CURRENT_STEP=0
+step() {
+	((CURRENT_STEP++))
+	echo ""
+	echo -e "${GREEN}[$CURRENT_STEP/$TOTAL_STEPS]${NC} ${BOLD}$1${NC}"
+}
+
+DRY_RUN=false
+YES_FLAG=false
 
 # ---------------------------------------------------------------------------
 # Backup & manifest paths
@@ -109,9 +122,10 @@ revert_kit() {
 		marker_line=$(grep -nF "## Architecture: Skills + Agents" "$global_claude_md" | head -1 | cut -d: -f1)
 		# Also strip preceding blank lines (up to 2)
 		local start_line=$((marker_line > 2 ? marker_line - 2 : marker_line))
-		sed -i '' "${start_line},\$d" "$global_claude_md"
+		# Cross-platform sed: use temp file + mv instead of sed -i
+		sed "${start_line},\$d" "$global_claude_md" > "$global_claude_md.tmp" && mv "$global_claude_md.tmp" "$global_claude_md"
 		# Trim trailing blank lines
-		sed -i '' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$global_claude_md"
+		sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$global_claude_md" > "$global_claude_md.tmp" && mv "$global_claude_md.tmp" "$global_claude_md"
 		log "Stripped old kit sections from CLAUDE.md (backed up to .kit-backup/)"
 	fi
 
@@ -142,21 +156,42 @@ revert_kit() {
 # ---------------------------------------------------------------------------
 # Flag parsing
 # ---------------------------------------------------------------------------
-if [ "${1:-}" = "--revert" ]; then
-	revert_kit
-	exit 0
-fi
+for arg in "$@"; do
+	case "$arg" in
+	--revert)
+		revert_kit
+		exit 0
+		;;
+	--dry-run)
+		DRY_RUN=true
+		;;
+	--yes)
+		YES_FLAG=true
+		;;
+	*)
+		err "Unknown flag: $arg"
+		echo "  Usage: ./install.sh [--revert] [--dry-run] [--yes]"
+		exit 1
+		;;
+	esac
+done
 
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║   Claude Code — Master Engineering Setup                       ║${NC}"
+echo -e "${BOLD}║   Claude Code — Master Engineering Setup v${KIT_VERSION}              ║${NC}"
 echo -e "${BOLD}║   Skills · Agents · Worktrees · Stateful Tasks · TDD       ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+if $DRY_RUN; then
+	info "${YELLOW}DRY RUN${NC} — no files will be modified"
+	echo ""
+fi
+
 # ---------------------------------------------------------------------------
 # 0. Pre-flight
 # ---------------------------------------------------------------------------
+step "Checking prerequisites..."
 if ! command -v claude &>/dev/null; then
 	err "Claude Code CLI not found. Install first:"
 	echo "  npm install -g @anthropic-ai/claude-code"
@@ -180,34 +215,57 @@ log "jq available"
 # ---------------------------------------------------------------------------
 # 1. Directories + manifest init
 # ---------------------------------------------------------------------------
+step "Creating directories..."
 AGENTS_DIR="$CLAUDE_DIR/agents"
 SKILLS_DIR="$CLAUDE_DIR/skills"
 RULES_KIT_DIR="$CLAUDE_DIR/rules/kit"
 
-mkdir -p "$AGENTS_DIR" "$RULES_KIT_DIR" "$BACKUP_DIR"
-
 SKILL_NAMES="lead-start lead-summary lead-cleanup review-pr arch-review investigate strategy scope quick-scan team-start team-status team-stop"
-for skill in $SKILL_NAMES; do
-	mkdir -p "$SKILLS_DIR/$skill"
-done
 
-# Initialize manifest (overwrite any previous)
-cat >"$MANIFEST_FILE" <<MANIFEST_HEADER
+if $DRY_RUN; then
+	info "Would create ~/.claude/agents/"
+	info "Would create ~/.claude/rules/kit/"
+	info "Would create ~/.claude/.kit-backup/"
+	for skill in $SKILL_NAMES; do
+		info "Would create ~/.claude/skills/$skill/"
+	done
+else
+	mkdir -p "$AGENTS_DIR" "$RULES_KIT_DIR" "$BACKUP_DIR"
+	for skill in $SKILL_NAMES; do
+		mkdir -p "$SKILLS_DIR/$skill"
+	done
+
+	# Version tracking — detect upgrade vs re-install
+	if [ -f "$MANIFEST_FILE" ]; then
+		INSTALLED_VERSION=$(grep "^VERSION:" "$MANIFEST_FILE" 2>/dev/null | cut -d: -f2 || true)
+		if [ -n "$INSTALLED_VERSION" ]; then
+			if [ "$INSTALLED_VERSION" = "$KIT_VERSION" ]; then
+				info "Re-installing v${KIT_VERSION}"
+			else
+				info "Upgrading v${INSTALLED_VERSION} → v${KIT_VERSION}"
+			fi
+		fi
+	fi
+
+	# Initialize manifest (overwrite any previous)
+	cat >"$MANIFEST_FILE" <<MANIFEST_HEADER
+VERSION:${KIT_VERSION}
 # claudecode-setup kit manifest
 # Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 MANIFEST_HEADER
 
-manifest "CREATED_DIR" "~/.claude/agents"
-manifest "CREATED_DIR" "~/.claude/rules/kit"
-for skill in $SKILL_NAMES; do
-	manifest "CREATED_DIR" "~/.claude/skills/$skill"
-done
-
-log "Created ~/.claude/agents/, ~/.claude/rules/kit/, and ~/.claude/skills/*/"
+	manifest "CREATED_DIR" "~/.claude/agents"
+	manifest "CREATED_DIR" "~/.claude/rules/kit"
+	for skill in $SKILL_NAMES; do
+		manifest "CREATED_DIR" "~/.claude/skills/$skill"
+	done
+	log "Created ~/.claude/agents/, ~/.claude/rules/kit/, and ~/.claude/skills/*/"
+fi
 
 # ---------------------------------------------------------------------------
 # 2. settings.json — merge with existing (preserves user customizations)
 # ---------------------------------------------------------------------------
+step "Merging settings.json..."
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 
 # Kit default settings
@@ -326,22 +384,10 @@ if ! echo "$KIT_DEFAULTS" | jq empty 2>/dev/null; then
 	exit 1
 fi
 
-if [ -f "$SETTINGS_FILE" ]; then
-	# Validate existing JSON before attempting merge
-	if ! jq empty "$SETTINGS_FILE" 2>/dev/null; then
-		warn "Existing settings.json is invalid JSON — backing up and creating fresh"
-		cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json.invalid"
-		echo "$KIT_DEFAULTS" | jq . >"$SETTINGS_FILE"
-		manifest "BACKED_UP" "~/.claude/settings.json"
-		log "Created settings.json (fresh — invalid original backed up)"
-	else
-		cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json"
-		manifest "BACKED_UP" "~/.claude/settings.json"
-
-		# Deep merge: kit defaults as base, user values override
-		# Objects merge recursively (user wins per key)
-		# Arrays union + deduplicate (both kit and user entries kept)
-		# Scalars: user value wins if present
+if $DRY_RUN; then
+	if [ -f "$SETTINGS_FILE" ]; then
+		info "Would merge kit defaults into existing ~/.claude/settings.json"
+		info "Settings diff preview:"
 		MERGED=$(jq -n \
 			--argjson kit "$KIT_DEFAULTS" \
 			--slurpfile user "$SETTINGS_FILE" \
@@ -365,54 +411,112 @@ if [ -f "$SETTINGS_FILE" ]; then
 				end;
 
 			deep_merge($kit; $user[0])
-			')
-
-		# Validate merge output before writing
-		if echo "$MERGED" | jq empty 2>/dev/null; then
-			echo "$MERGED" | jq . >"$SETTINGS_FILE"
-			log "Merged settings.json (user values preserved)"
-		else
-			err "settings.json merge produced invalid JSON — restoring backup"
-			cp "$BACKUP_DIR/settings.json" "$SETTINGS_FILE"
-			exit 1
-		fi
+			' 2>/dev/null || echo "$KIT_DEFAULTS")
+		diff <(jq --sort-keys . "$SETTINGS_FILE") <(echo "$MERGED" | jq --sort-keys .) || true
+	else
+		info "Would create ~/.claude/settings.json (kit defaults)"
 	fi
 else
-	echo "$KIT_DEFAULTS" | jq . >"$SETTINGS_FILE"
-	log "Created settings.json (kit defaults)"
-fi
+	if [ -f "$SETTINGS_FILE" ]; then
+		# Validate existing JSON before attempting merge
+		if ! jq empty "$SETTINGS_FILE" 2>/dev/null; then
+			warn "Existing settings.json is invalid JSON — backing up and creating fresh"
+			cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json.invalid"
+			echo "$KIT_DEFAULTS" | jq . >"$SETTINGS_FILE"
+			manifest "BACKED_UP" "~/.claude/settings.json"
+			log "Created settings.json (fresh — invalid original backed up)"
+		else
+			cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json"
+			manifest "BACKED_UP" "~/.claude/settings.json"
 
-# Final validation: ensure settings.json is valid before continuing
-if ! jq empty "$SETTINGS_FILE" 2>/dev/null; then
-	err "settings.json is invalid after write — restoring backup if available"
-	if [ -f "$BACKUP_DIR/settings.json" ]; then
-		cp "$BACKUP_DIR/settings.json" "$SETTINGS_FILE"
-		warn "Restored settings.json from backup"
+			# Deep merge: kit defaults as base, user values override
+			# Objects merge recursively (user wins per key)
+			# Arrays union + deduplicate (both kit and user entries kept)
+			# Scalars: user value wins if present
+			MERGED=$(jq -n \
+				--argjson kit "$KIT_DEFAULTS" \
+				--slurpfile user "$SETTINGS_FILE" \
+				'
+				def deep_merge(a; b):
+					if (a | type) == "object" and (b | type) == "object" then
+						([a, b] | map(keys) | add | unique) | map(
+							. as $k |
+							if (a | has($k)) and (b | has($k)) then
+								{($k): deep_merge(a[$k]; b[$k])}
+							elif (b | has($k)) then
+								{($k): b[$k]}
+							else
+								{($k): a[$k]}
+							end
+						) | add // {}
+					elif (a | type) == "array" and (b | type) == "array" then
+						(a + b) | unique
+					else
+						b
+					end;
+
+				deep_merge($kit; $user[0])
+				')
+
+			# Validate merge output before writing
+			if echo "$MERGED" | jq empty 2>/dev/null; then
+				echo "$MERGED" | jq . >"$SETTINGS_FILE"
+				log "Merged settings.json (user values preserved)"
+			else
+				err "settings.json merge produced invalid JSON — restoring backup"
+				cp "$BACKUP_DIR/settings.json" "$SETTINGS_FILE"
+				exit 1
+			fi
+		fi
+	else
+		echo "$KIT_DEFAULTS" | jq . >"$SETTINGS_FILE"
+		log "Created settings.json (kit defaults)"
 	fi
-	exit 1
+
+	# Final validation: ensure settings.json is valid before continuing
+	if ! jq empty "$SETTINGS_FILE" 2>/dev/null; then
+		err "settings.json is invalid after write — restoring backup if available"
+		if [ -f "$BACKUP_DIR/settings.json" ]; then
+			cp "$BACKUP_DIR/settings.json" "$SETTINGS_FILE"
+			warn "Restored settings.json from backup"
+		fi
+		exit 1
+	fi
 fi
 
 # ---------------------------------------------------------------------------
 # 2b. statusline.sh → ~/.claude/statusline.sh
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -f "$SCRIPT_DIR/statusline.sh" ]; then
-	if [ -f "$CLAUDE_DIR/statusline.sh" ]; then
-		cp "$CLAUDE_DIR/statusline.sh" "$BACKUP_DIR/statusline.sh"
-		manifest "BACKED_UP" "~/.claude/statusline.sh"
+if $DRY_RUN; then
+	if [ -f "$SCRIPT_DIR/statusline.sh" ]; then
+		info "Would copy statusline.sh → ~/.claude/statusline.sh"
 	fi
-	cp "$SCRIPT_DIR/statusline.sh" "$CLAUDE_DIR/statusline.sh"
-	chmod +x "$CLAUDE_DIR/statusline.sh"
-	manifest "CREATED" "~/.claude/statusline.sh"
-	log "Copied statusline.sh → ~/.claude/statusline.sh"
 else
-	warn "statusline.sh not found in $SCRIPT_DIR — skipping"
+	if [ -f "$SCRIPT_DIR/statusline.sh" ]; then
+		if [ -f "$CLAUDE_DIR/statusline.sh" ]; then
+			cp "$CLAUDE_DIR/statusline.sh" "$BACKUP_DIR/statusline.sh"
+			manifest "BACKED_UP" "~/.claude/statusline.sh"
+		fi
+		cp "$SCRIPT_DIR/statusline.sh" "$CLAUDE_DIR/statusline.sh"
+		chmod +x "$CLAUDE_DIR/statusline.sh"
+		manifest "CREATED" "~/.claude/statusline.sh"
+		log "Copied statusline.sh → ~/.claude/statusline.sh"
+	else
+		warn "statusline.sh not found in $SCRIPT_DIR — skipping"
+	fi
 fi
 
 # ---------------------------------------------------------------------------
 # 3. Kit rules — ~/.claude/rules/kit/CLAUDE-kit.md (auto-loaded by Claude Code)
 # ---------------------------------------------------------------------------
+step "Setting up kit rules..."
 KIT_RULES_FILE="$RULES_KIT_DIR/CLAUDE-kit.md"
+
+if $DRY_RUN; then
+	info "Would create ~/.claude/rules/kit/CLAUDE-kit.md"
+	info "Would handle CLAUDE.md legacy markers + kit reference"
+else
 
 cat >"$KIT_RULES_FILE" <<'KIT_EOF'
 # Claude Code Kit — Skills, Agents & Teams
@@ -621,9 +725,10 @@ if [ -f "$GLOBAL_CLAUDE_MD" ]; then
 		MARKER_LINE=$(grep -nF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD" | head -1 | cut -d: -f1)
 		# Also strip preceding blank lines (up to 2)
 		START_LINE=$((MARKER_LINE > 2 ? MARKER_LINE - 2 : MARKER_LINE))
-		sed -i '' "${START_LINE},\$d" "$GLOBAL_CLAUDE_MD"
+		# Cross-platform sed: use temp file + mv instead of sed -i
+		sed "${START_LINE},\$d" "$GLOBAL_CLAUDE_MD" > "$GLOBAL_CLAUDE_MD.tmp" && mv "$GLOBAL_CLAUDE_MD.tmp" "$GLOBAL_CLAUDE_MD"
 		# Trim trailing blank lines
-		sed -i '' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$GLOBAL_CLAUDE_MD"
+		sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$GLOBAL_CLAUDE_MD" > "$GLOBAL_CLAUDE_MD.tmp" && mv "$GLOBAL_CLAUDE_MD.tmp" "$GLOBAL_CLAUDE_MD"
 		log "Stripped old kit sections from CLAUDE.md (backed up to .kit-backup/)"
 	fi
 
@@ -649,9 +754,22 @@ CLAUDE_MINIMAL_EOF
 	log "Created minimal CLAUDE.md (with kit reference)"
 fi
 
+fi # end dry-run check for section 3
+
 # ---------------------------------------------------------------------------
 # 4. AGENTS
 # ---------------------------------------------------------------------------
+step "Installing agents (7)..."
+
+if $DRY_RUN; then
+	info "Would create ~/.claude/agents/team-lead.md"
+	info "Would create ~/.claude/agents/architect.md"
+	info "Would create ~/.claude/agents/dev.md"
+	info "Would create ~/.claude/agents/qa.md"
+	info "Would create ~/.claude/agents/security-reviewer.md"
+	info "Would create ~/.claude/agents/pm.md"
+	info "Would create ~/.claude/agents/explorer.md"
+else
 
 cat >"$AGENTS_DIR/team-lead.md" <<'AGENT_EOF'
 ---
@@ -1181,9 +1299,18 @@ AGENT_EOF
 log "Created agent: explorer"
 manifest "CREATED" "~/.claude/agents/explorer.md"
 
+fi # end dry-run check for section 4
+
 # ---------------------------------------------------------------------------
 # 5. SKILLS
 # ---------------------------------------------------------------------------
+step "Installing skills (12)..."
+
+if $DRY_RUN; then
+	for skill in $SKILL_NAMES; do
+		info "Would create ~/.claude/skills/$skill/SKILL.md"
+	done
+else
 
 cat >"$SKILLS_DIR/lead-start/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1853,42 +1980,65 @@ SKILL_EOF
 log "Created skill: /team-stop"
 manifest "CREATED" "~/.claude/skills/team-stop/SKILL.md"
 
+fi # end dry-run check for section 5
+
 # ---------------------------------------------------------------------------
 # 6. Clean up old commands
 # ---------------------------------------------------------------------------
+step "Checking for deprecated files..."
 if [ -d "$CLAUDE_DIR/commands" ] && [ "$(ls -A "$CLAUDE_DIR/commands" 2>/dev/null)" ]; then
 	warn "Found old ~/.claude/commands/ (deprecated)"
 	info "Skills in ~/.claude/skills/ now replace commands."
 	info "Remove old commands manually: rm -rf ~/.claude/commands/"
+else
+	log "No deprecated files found"
 fi
 
 # ---------------------------------------------------------------------------
 # 7. Optional: claude-squad
 # ---------------------------------------------------------------------------
-echo ""
-info "Optional: Install claude-squad for parallel tmux sessions?"
-read -p "  Install? [y/N] " -n 1 -r
-echo ""
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-	if command -v brew &>/dev/null; then
-		brew install claude-squad 2>/dev/null &&
-			ln -sf "$(brew --prefix)/bin/claude-squad" "$(brew --prefix)/bin/cs" 2>/dev/null
-		log "claude-squad installed (alias: cs)"
-	else
-		curl -fsSL https://raw.githubusercontent.com/smtg-ai/claude-squad/main/install.sh | bash
-		log "claude-squad installed"
-	fi
+step "Optional components..."
+if $DRY_RUN; then
+	info "Would prompt for claude-squad installation (skipped in dry-run)"
+elif $YES_FLAG; then
+	info "Skipped claude-squad prompt (--yes flag)"
 else
-	info "Skipped"
+	echo ""
+	info "Optional: Install claude-squad for parallel tmux sessions?"
+	read -p "  Install? [y/N] " -n 1 -r
+	echo ""
+
+	if [[ $REPLY =~ ^[Yy]$ ]]; then
+		if command -v brew &>/dev/null; then
+			brew install claude-squad 2>/dev/null &&
+				ln -sf "$(brew --prefix)/bin/claude-squad" "$(brew --prefix)/bin/cs" 2>/dev/null
+			log "claude-squad installed (alias: cs)"
+		else
+			curl -fsSL https://raw.githubusercontent.com/smtg-ai/claude-squad/main/install.sh | bash
+			log "claude-squad installed"
+		fi
+	else
+		info "Skipped"
+	fi
 fi
 
 # ---------------------------------------------------------------------------
 # 8. Summary
 # ---------------------------------------------------------------------------
+if $DRY_RUN; then
+	echo ""
+	echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+	echo -e "${BOLD}║   Dry Run Complete — no files were modified                 ║${NC}"
+	echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+	echo ""
+	info "Run without --dry-run to apply changes"
+	echo ""
+	exit 0
+fi
+
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║   Setup Complete — v6 · Skills + Agents + Teams            ║${NC}"
+echo -e "${BOLD}║   Setup Complete — v${KIT_VERSION} · Skills + Agents + Teams          ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  ${BOLD}Architecture:${NC}"
