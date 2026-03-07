@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================================
-# Claude Code Master Engineering Setup — v5
+# Claude Code Master Engineering Setup — v6
 # Skills-based · Agents + Skills · Git Worktrees · Stateful Tasks
 # All Opus 4.6 · TDD Pipeline
 # ============================================================================
@@ -20,6 +20,132 @@ log() { echo -e "${GREEN}[✓]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 err() { echo -e "${RED}[✗]${NC} $1"; }
 info() { echo -e "${BLUE}[→]${NC} $1"; }
+
+# ---------------------------------------------------------------------------
+# Backup & manifest paths
+# ---------------------------------------------------------------------------
+CLAUDE_DIR="$HOME/.claude"
+BACKUP_DIR="$CLAUDE_DIR/.kit-backup"
+MANIFEST_FILE="$CLAUDE_DIR/.kit-manifest"
+
+manifest() {
+	echo "$1:$2" >>"$MANIFEST_FILE"
+}
+
+# ---------------------------------------------------------------------------
+# Revert function — restores pre-install state from manifest
+# ---------------------------------------------------------------------------
+revert_kit() {
+	echo ""
+	echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+	echo -e "${BOLD}║   Claude Code Kit — Revert                                  ║${NC}"
+	echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+	echo ""
+
+	if [ ! -f "$MANIFEST_FILE" ]; then
+		err "No kit manifest found at $MANIFEST_FILE"
+		info "Nothing to revert (kit may not have been installed)"
+		return 1
+	fi
+
+	local errors=0
+
+	while IFS= read -r line; do
+		# Skip comments and blank lines
+		[[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+
+		local action="${line%%:*}"
+		local filepath="${line#*:}"
+		# Strip extra info after second colon
+		filepath="${filepath%%:*}"
+		# Expand ~ to $HOME
+		filepath="${filepath/#\~/$HOME}"
+
+		case "$action" in
+		CREATED)
+			if [ -f "$filepath" ]; then
+				rm -f "$filepath"
+				log "Deleted: $filepath"
+			else
+				info "Already gone: $filepath"
+			fi
+			;;
+		CREATED_DIR)
+			if [ -d "$filepath" ] && [ -z "$(ls -A "$filepath" 2>/dev/null)" ]; then
+				rmdir "$filepath"
+				log "Removed empty dir: $filepath"
+			else
+				info "Skipped non-empty or missing dir: $filepath"
+			fi
+			;;
+		BACKED_UP)
+			local backup_name
+			backup_name=$(basename "$filepath")
+			local backup_path="$BACKUP_DIR/$backup_name"
+			if [ -f "$backup_path" ]; then
+				cp "$backup_path" "$filepath"
+				log "Restored: $filepath (from backup)"
+			else
+				warn "No backup found for $filepath — skipping"
+				((errors++)) || true
+			fi
+			;;
+		CREATED_MINIMAL)
+			if [ -f "$filepath" ]; then
+				warn "Kept: $filepath (may contain user edits — review manually)"
+			fi
+			;;
+		*)
+			warn "Unknown action '$action' for $filepath — skipping"
+			;;
+		esac
+	done <"$MANIFEST_FILE"
+
+	# Auto-strip legacy kit sections from CLAUDE.md
+	local global_claude_md="$CLAUDE_DIR/CLAUDE.md"
+	if [ -f "$global_claude_md" ] && grep -qnF "## Architecture: Skills + Agents" "$global_claude_md"; then
+		cp "$global_claude_md" "$BACKUP_DIR/CLAUDE.md.pre-strip"
+		local marker_line
+		marker_line=$(grep -nF "## Architecture: Skills + Agents" "$global_claude_md" | head -1 | cut -d: -f1)
+		# Also strip preceding blank lines (up to 2)
+		local start_line=$((marker_line > 2 ? marker_line - 2 : marker_line))
+		sed -i '' "${start_line},\$d" "$global_claude_md"
+		# Trim trailing blank lines
+		sed -i '' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$global_claude_md"
+		log "Stripped old kit sections from CLAUDE.md (backed up to .kit-backup/)"
+	fi
+
+	# Clean up empty directories
+	for skill_dir in "$CLAUDE_DIR/skills"/*/; do
+		[ -d "$skill_dir" ] && [ -z "$(ls -A "$skill_dir" 2>/dev/null)" ] && rmdir "$skill_dir" 2>/dev/null || true
+	done
+	[ -d "$CLAUDE_DIR/skills" ] && [ -z "$(ls -A "$CLAUDE_DIR/skills" 2>/dev/null)" ] && rmdir "$CLAUDE_DIR/skills" 2>/dev/null || true
+	[ -d "$CLAUDE_DIR/agents" ] && [ -z "$(ls -A "$CLAUDE_DIR/agents" 2>/dev/null)" ] && rmdir "$CLAUDE_DIR/agents" 2>/dev/null || true
+	[ -d "$CLAUDE_DIR/rules/kit" ] && [ -z "$(ls -A "$CLAUDE_DIR/rules/kit" 2>/dev/null)" ] && rmdir "$CLAUDE_DIR/rules/kit" 2>/dev/null || true
+
+	# Remove manifest and backup dir
+	rm -f "$MANIFEST_FILE"
+	if [ -d "$BACKUP_DIR" ]; then
+		rm -rf "$BACKUP_DIR"
+		log "Removed backup directory"
+	fi
+
+	echo ""
+	if [ "$errors" -eq 0 ]; then
+		log "Revert complete. Kit files removed, backups restored."
+	else
+		warn "Revert completed with $errors warning(s). Review output above."
+	fi
+	echo ""
+}
+
+# ---------------------------------------------------------------------------
+# Flag parsing
+# ---------------------------------------------------------------------------
+if [ "${1:-}" = "--revert" ]; then
+	revert_kit
+	exit 0
+fi
 
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -52,32 +178,42 @@ fi
 log "jq available"
 
 # ---------------------------------------------------------------------------
-# 1. Directories
+# 1. Directories + manifest init
 # ---------------------------------------------------------------------------
-CLAUDE_DIR="$HOME/.claude"
 AGENTS_DIR="$CLAUDE_DIR/agents"
 SKILLS_DIR="$CLAUDE_DIR/skills"
+RULES_KIT_DIR="$CLAUDE_DIR/rules/kit"
 
-mkdir -p "$AGENTS_DIR"
-for skill in lead-start lead-summary lead-cleanup review-pr arch-review investigate strategy scope quick-scan team-start team-status team-stop; do
+mkdir -p "$AGENTS_DIR" "$RULES_KIT_DIR" "$BACKUP_DIR"
+
+SKILL_NAMES="lead-start lead-summary lead-cleanup review-pr arch-review investigate strategy scope quick-scan team-start team-status team-stop"
+for skill in $SKILL_NAMES; do
 	mkdir -p "$SKILLS_DIR/$skill"
 done
 
-log "Created ~/.claude/agents/ and ~/.claude/skills/*/"
+# Initialize manifest (overwrite any previous)
+cat >"$MANIFEST_FILE" <<MANIFEST_HEADER
+# claudecode-setup kit manifest
+# Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+MANIFEST_HEADER
+
+manifest "CREATED_DIR" "~/.claude/agents"
+manifest "CREATED_DIR" "~/.claude/rules/kit"
+for skill in $SKILL_NAMES; do
+	manifest "CREATED_DIR" "~/.claude/skills/$skill"
+done
+
+log "Created ~/.claude/agents/, ~/.claude/rules/kit/, and ~/.claude/skills/*/"
 
 # ---------------------------------------------------------------------------
-# 2. settings.json — backup existing + overwrite (AWS Bedrock)
+# 2. settings.json — merge with existing (preserves user customizations)
 # ---------------------------------------------------------------------------
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 
-if [ -f "$SETTINGS_FILE" ]; then
-	cp "$SETTINGS_FILE" "$SETTINGS_FILE.bak"
-	warn "Backed up existing settings.json → settings.json.bak"
-fi
-
-cat >"$SETTINGS_FILE" <<EOF
+# Kit default settings
+KIT_DEFAULTS=$(cat <<'DEFAULTS_EOF'
 {
-  "\$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "MAX_MCP_OUTPUT_TOKENS": "60000",
     "BASH_DEFAULT_TIMEOUT_MS": "300000",
@@ -85,12 +221,15 @@ cat >"$SETTINGS_FILE" <<EOF
     "MAX_THINKING_TOKENS": "8192",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
     "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "45000",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "0"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "model": "opus",
+  "effortLevel": "high",
+  "alwaysThinkingEnabled": true,
+  "showTurnDuration": true,
   "cleanupPeriodDays": 365,
   "includeCoAuthoredBy": false,
+  "includeGitInstructions": true,
   "permissions": {
     "allow": [
       "Read",
@@ -148,6 +287,8 @@ cat >"$SETTINGS_FILE" <<EOF
       "Bash(npx vitest *)",
       "Bash(npx jest *)",
       "Bash(echo *)",
+      "Bash(rtk *)",
+      "Bash(fd *)",
       "mcp__pencil",
       "Bash(trash *)"
     ],
@@ -174,46 +315,107 @@ cat >"$SETTINGS_FILE" <<EOF
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
-  "enabledPlugins": {
-    "react-native-best-practices@callstack-agent-skills": true,
-    "document-skills@anthropic-agent-skills": true,
-    "example-skills@anthropic-agent-skills": true,
-    "everything-claude-code@everything-claude-code": true,
-    "claude-md-management@claude-plugins-official": true,
-    "scheduler@claude-scheduler": true,
-    "pyright-lsp@claude-plugins-official": true
-  },
-  "skipDangerousModePermissionPrompt": true,
   "teammateMode": "tmux"
 }
-EOF
-log "Created settings.json"
+DEFAULTS_EOF
+)
+
+# Validate KIT_DEFAULTS JSON before any merge/write
+if ! echo "$KIT_DEFAULTS" | jq empty 2>/dev/null; then
+	err "KIT_DEFAULTS contains invalid JSON — aborting settings.json update"
+	exit 1
+fi
+
+if [ -f "$SETTINGS_FILE" ]; then
+	# Validate existing JSON before attempting merge
+	if ! jq empty "$SETTINGS_FILE" 2>/dev/null; then
+		warn "Existing settings.json is invalid JSON — backing up and creating fresh"
+		cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json.invalid"
+		echo "$KIT_DEFAULTS" | jq . >"$SETTINGS_FILE"
+		manifest "BACKED_UP" "~/.claude/settings.json"
+		log "Created settings.json (fresh — invalid original backed up)"
+	else
+		cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json"
+		manifest "BACKED_UP" "~/.claude/settings.json"
+
+		# Deep merge: kit defaults as base, user values override
+		# Objects merge recursively (user wins per key)
+		# Arrays union + deduplicate (both kit and user entries kept)
+		# Scalars: user value wins if present
+		MERGED=$(jq -n \
+			--argjson kit "$KIT_DEFAULTS" \
+			--slurpfile user "$SETTINGS_FILE" \
+			'
+			def deep_merge(a; b):
+				if (a | type) == "object" and (b | type) == "object" then
+					([a, b] | map(keys) | add | unique) | map(
+						. as $k |
+						if (a | has($k)) and (b | has($k)) then
+							{($k): deep_merge(a[$k]; b[$k])}
+						elif (b | has($k)) then
+							{($k): b[$k]}
+						else
+							{($k): a[$k]}
+						end
+					) | add // {}
+				elif (a | type) == "array" and (b | type) == "array" then
+					(a + b) | unique
+				else
+					b
+				end;
+
+			deep_merge($kit; $user[0])
+			')
+
+		# Validate merge output before writing
+		if echo "$MERGED" | jq empty 2>/dev/null; then
+			echo "$MERGED" | jq . >"$SETTINGS_FILE"
+			log "Merged settings.json (user values preserved)"
+		else
+			err "settings.json merge produced invalid JSON — restoring backup"
+			cp "$BACKUP_DIR/settings.json" "$SETTINGS_FILE"
+			exit 1
+		fi
+	fi
+else
+	echo "$KIT_DEFAULTS" | jq . >"$SETTINGS_FILE"
+	log "Created settings.json (kit defaults)"
+fi
+
+# Final validation: ensure settings.json is valid before continuing
+if ! jq empty "$SETTINGS_FILE" 2>/dev/null; then
+	err "settings.json is invalid after write — restoring backup if available"
+	if [ -f "$BACKUP_DIR/settings.json" ]; then
+		cp "$BACKUP_DIR/settings.json" "$SETTINGS_FILE"
+		warn "Restored settings.json from backup"
+	fi
+	exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # 2b. statusline.sh → ~/.claude/statusline.sh
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -f "$SCRIPT_DIR/statusline.sh" ]; then
+	if [ -f "$CLAUDE_DIR/statusline.sh" ]; then
+		cp "$CLAUDE_DIR/statusline.sh" "$BACKUP_DIR/statusline.sh"
+		manifest "BACKED_UP" "~/.claude/statusline.sh"
+	fi
 	cp "$SCRIPT_DIR/statusline.sh" "$CLAUDE_DIR/statusline.sh"
 	chmod +x "$CLAUDE_DIR/statusline.sh"
+	manifest "CREATED" "~/.claude/statusline.sh"
 	log "Copied statusline.sh → ~/.claude/statusline.sh"
 else
 	warn "statusline.sh not found in $SCRIPT_DIR — skipping"
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Global CLAUDE.md — APPEND skills+agents section (never overwrite)
+# 3. Kit rules — ~/.claude/rules/kit/CLAUDE-kit.md (auto-loaded by Claude Code)
 # ---------------------------------------------------------------------------
-GLOBAL_CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
-MARKER="## Architecture: Skills + Agents"
+KIT_RULES_FILE="$RULES_KIT_DIR/CLAUDE-kit.md"
 
-if [ -f "$GLOBAL_CLAUDE_MD" ]; then
-	if grep -qF "$MARKER" "$GLOBAL_CLAUDE_MD"; then
-		info "CLAUDE.md already has Skills+Agents section — skipping"
-	else
-		warn "Appending Skills+Agents section to existing CLAUDE.md"
-		cp "$GLOBAL_CLAUDE_MD" "$GLOBAL_CLAUDE_MD.bak"
-		cat >>"$GLOBAL_CLAUDE_MD" <<'CLAUDE_APPEND_EOF'
+cat >"$KIT_RULES_FILE" <<'KIT_EOF'
+# Claude Code Kit — Skills, Agents & Teams
 
 ## Architecture: Skills + Agents
 
@@ -312,125 +514,6 @@ Base Commit: {sha}
 - After peer review, team-lead merges dev branches → integrate.
 - QA and gate review in integrate worktree.
 - `/lead-cleanup {slug}` removes worktrees after Master merges.
-CLAUDE_APPEND_EOF
-		log "Appended Skills+Agents section to CLAUDE.md"
-	fi
-else
-	warn "No CLAUDE.md found — creating minimal one"
-	cat >"$GLOBAL_CLAUDE_MD" <<'CLAUDE_NEW_EOF'
-# ClaudeCode — Global Context
-
-## Architecture: Skills + Agents
-
-### Skills (`~/.claude/skills/`)
-Skills are task workflows invoked via `/skill-name` or auto-triggered.
-Each has a `SKILL.md` with frontmatter. Skills use `context: fork` + `agent: team-lead`
-to delegate work to the team-lead agent in an isolated context.
-
-| Skill | Trigger |
-|-------|---------|
-| `/lead-start` | Start or resume a task |
-| `/lead-summary` | Progress + blockers |
-| `/lead-cleanup` | Remove worktrees after merge |
-| `/review-pr` | PR review pipeline |
-| `/arch-review` | Architecture audit |
-| `/investigate` | Incident investigation |
-| `/strategy` | Strategic decisions |
-| `/scope` | Project scoping |
-| `/quick-scan` | Health check |
-| `/team-start` | Spawn agent team (parallel instances) |
-| `/team-status` | Monitor team member progress |
-| `/team-stop` | Clean up team resources |
-
-### Agents (`~/.claude/agents/`)
-Specialist subagents delegated to by team-lead. Each has tools and a reporting chain.
-
-| Agent | Role |
-|-------|------|
-| `team-lead` | Orchestrator — all skills fork into this agent |
-| `architect` | Design + final gate |
-| `dev` | TDD implementation + peer review (×1-5, in worktrees) |
-| `qa` | e2e testing (on integrate worktree) |
-| `security-reviewer` | Security audit (final gate) |
-| `pm` | Requirements, scope, risk |
-| `explorer` | Fast codebase scout |
-
-### Two Orchestration Modes
-
-| Mode | Skills | How it works |
-|------|--------|-------------|
-| **Subagent** | `/lead-start` | Single session, Task tool, sequential |
-| **Agent Team** | `/team-start` | Separate instances, true parallel |
-
-Use **subagents** for tightly coordinated work. Use **agent teams** for embarrassingly parallel tasks (different files/modules).
-
-## Task State System
-
-All work tracked in `.claude/tasks/` with per-role markdown files and `_status.md` as source of truth.
-
-### _status.md Format
-```markdown
-# Task: {title}
-Created: {date}
-Updated: {date}
-Phase: {PLAN|BUILD|PEER_REVIEW|MERGE|QA|GATE|DONE|BLOCKED}
-Status: {IN_PROGRESS|COMPLETED|BLOCKED}
-Devs: {1-5 or TBD}
-Base Commit: {sha}
-
-## Worktrees
-(created at BUILD phase)
-
-## Phase Checklist
-- [ ] PLAN — pm requirements
-- [ ] PLAN — architect design
-- [ ] BUILD — dev-1 ({area})
-... (only as many as Devs count)
-- [ ] PEER_REVIEW (skip if Devs=1)
-- [ ] MERGE — integrate branch
-- [ ] QA — e2e testing
-- [ ] GATE — security review
-- [ ] GATE — architect review
-- [ ] REPORT — summary
-
-## Blockers
-(none)
-```
-
-### Rules
-- Every agent reads `_status.md` before work, updates it after.
-- Code in worktrees, task docs in main repo `.claude/tasks/`.
-- Master decides when to merge — never auto-merge.
-
-## Git Worktree Isolation
-
-```
-.worktrees/{task-slug}/
-├── dev-1/     ← branch: {slug}/dev-1
-├── dev-2/     ← branch: {slug}/dev-2
-└── integrate/ ← branch: {slug}/integrate (QA + gate)
-```
-
-- team-lead creates worktrees at BUILD start, records base commit.
-- Each dev works ONLY in their worktree. Never touch main repo code.
-- After peer review, team-lead merges dev branches → integrate.
-- QA and gate review in integrate worktree.
-- `/lead-cleanup {slug}` removes worktrees after Master merges.
-CLAUDE_NEW_EOF
-	log "Created new CLAUDE.md (minimal — add your own sections)"
-fi
-
-# ---------------------------------------------------------------------------
-# 3b. Global CLAUDE.md — APPEND agent teams section (separate marker)
-# ---------------------------------------------------------------------------
-TEAMS_MARKER="## Agent Teams (Experimental)"
-
-if [ -f "$GLOBAL_CLAUDE_MD" ]; then
-	if grep -qF "$TEAMS_MARKER" "$GLOBAL_CLAUDE_MD"; then
-		info "CLAUDE.md already has Agent Teams section — skipping"
-	else
-		warn "Appending Agent Teams section to existing CLAUDE.md"
-		cat >>"$GLOBAL_CLAUDE_MD" <<'TEAMS_APPEND_EOF'
 
 ## Agent Teams (Experimental)
 
@@ -519,9 +602,51 @@ Configure via `teammateMode` in `settings.json` or `claude --teammate-mode tmux`
 - **Subagents (Task tool)**: Controlled by `CLAUDE_CODE_SUBAGENT_MODEL` env var.
 
 Both are set to use Opus 4.5 for consistent behavior across all agents.
-TEAMS_APPEND_EOF
-		log "Appended Agent Teams section to CLAUDE.md"
+KIT_EOF
+
+manifest "CREATED" "~/.claude/rules/kit/CLAUDE-kit.md"
+log "Created rules/kit/CLAUDE-kit.md (auto-loaded by Claude Code)"
+
+# --- Handle CLAUDE.md: strip legacy markers, create minimal if missing ---
+GLOBAL_CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
+LEGACY_MARKER="## Architecture: Skills + Agents"
+
+KIT_REF_MARKER="@rules/kit/CLAUDE-kit.md"
+
+if [ -f "$GLOBAL_CLAUDE_MD" ]; then
+	if grep -qF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD"; then
+		warn "Found old kit sections in CLAUDE.md — stripping (content now in rules/kit/)"
+		cp "$GLOBAL_CLAUDE_MD" "$BACKUP_DIR/CLAUDE.md"
+		manifest "BACKED_UP" "~/.claude/CLAUDE.md"
+		MARKER_LINE=$(grep -nF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD" | head -1 | cut -d: -f1)
+		# Also strip preceding blank lines (up to 2)
+		START_LINE=$((MARKER_LINE > 2 ? MARKER_LINE - 2 : MARKER_LINE))
+		sed -i '' "${START_LINE},\$d" "$GLOBAL_CLAUDE_MD"
+		# Trim trailing blank lines
+		sed -i '' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$GLOBAL_CLAUDE_MD"
+		log "Stripped old kit sections from CLAUDE.md (backed up to .kit-backup/)"
 	fi
+
+	# Add kit reference if not already present
+	if ! grep -qF "$KIT_REF_MARKER" "$GLOBAL_CLAUDE_MD"; then
+		printf '\n%s\n' "$KIT_REF_MARKER" >>"$GLOBAL_CLAUDE_MD"
+		log "Added kit reference to CLAUDE.md"
+	else
+		info "CLAUDE.md already has kit reference — skipping"
+	fi
+else
+	warn "No CLAUDE.md found — creating minimal one"
+	cat >"$GLOBAL_CLAUDE_MD" <<'CLAUDE_MINIMAL_EOF'
+# CLAUDE.md
+
+Global instructions for Claude Code.
+
+Add your personal instructions below.
+
+@rules/kit/CLAUDE-kit.md
+CLAUDE_MINIMAL_EOF
+	manifest "CREATED_MINIMAL" "~/.claude/CLAUDE.md"
+	log "Created minimal CLAUDE.md (with kit reference)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -675,6 +800,7 @@ After each phase transition:
 AGENT_EOF
 
 log "Created agent: team-lead"
+manifest "CREATED" "~/.claude/agents/team-lead.md"
 
 cat >"$AGENTS_DIR/architect.md" <<'AGENT_EOF'
 ---
@@ -747,6 +873,7 @@ Gate Decision: PASS ✅ | CONDITIONAL ⚠️ | FAIL 🛑
 AGENT_EOF
 
 log "Created agent: architect"
+manifest "CREATED" "~/.claude/agents/architect.md"
 
 cat >"$AGENTS_DIR/dev.md" <<'AGENT_EOF'
 ---
@@ -831,6 +958,7 @@ Check TDD compliance, correctness, edge cases. Verdict: APPROVED ✅ | NEEDS CHA
 AGENT_EOF
 
 log "Created agent: dev"
+manifest "CREATED" "~/.claude/agents/dev.md"
 
 cat >"$AGENTS_DIR/qa.md" <<'AGENT_EOF'
 ---
@@ -890,6 +1018,7 @@ Verdict: PASS ✅ | FAIL 🛑
 AGENT_EOF
 
 log "Created agent: qa"
+manifest "CREATED" "~/.claude/agents/qa.md"
 
 cat >"$AGENTS_DIR/security-reviewer.md" <<'AGENT_EOF'
 ---
@@ -954,6 +1083,7 @@ Gate Decision: PASS ✅ | CONDITIONAL ⚠️ | FAIL 🛑
 AGENT_EOF
 
 log "Created agent: security-reviewer"
+manifest "CREATED" "~/.claude/agents/security-reviewer.md"
 
 cat >"$AGENTS_DIR/pm.md" <<'AGENT_EOF'
 ---
@@ -1003,6 +1133,7 @@ Status: COMPLETED | IN_PROGRESS | BLOCKED
 AGENT_EOF
 
 log "Created agent: pm"
+manifest "CREATED" "~/.claude/agents/pm.md"
 
 cat >"$AGENTS_DIR/explorer.md" <<'AGENT_EOF'
 ---
@@ -1048,6 +1179,7 @@ Status: COMPLETED
 AGENT_EOF
 
 log "Created agent: explorer"
+manifest "CREATED" "~/.claude/agents/explorer.md"
 
 # ---------------------------------------------------------------------------
 # 5. SKILLS
@@ -1109,6 +1241,7 @@ Master's request: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /lead-start"
+manifest "CREATED" "~/.claude/skills/lead-start/SKILL.md"
 
 cat >"$SKILLS_DIR/lead-summary/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1136,6 +1269,7 @@ Focus (optional): $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /lead-summary"
+manifest "CREATED" "~/.claude/skills/lead-summary/SKILL.md"
 
 cat >"$SKILLS_DIR/lead-cleanup/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1162,6 +1296,7 @@ Task: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /lead-cleanup"
+manifest "CREATED" "~/.claude/skills/lead-cleanup/SKILL.md"
 
 cat >"$SKILLS_DIR/review-pr/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1192,6 +1327,7 @@ PR context: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /review-pr"
+manifest "CREATED" "~/.claude/skills/review-pr/SKILL.md"
 
 cat >"$SKILLS_DIR/arch-review/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1219,6 +1355,7 @@ Focus: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /arch-review"
+manifest "CREATED" "~/.claude/skills/arch-review/SKILL.md"
 
 cat >"$SKILLS_DIR/investigate/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1246,6 +1383,7 @@ Issue: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /investigate"
+manifest "CREATED" "~/.claude/skills/investigate/SKILL.md"
 
 cat >"$SKILLS_DIR/strategy/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1272,6 +1410,7 @@ Decision: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /strategy"
+manifest "CREATED" "~/.claude/skills/strategy/SKILL.md"
 
 cat >"$SKILLS_DIR/scope/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1298,6 +1437,7 @@ Project: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /scope"
+manifest "CREATED" "~/.claude/skills/scope/SKILL.md"
 
 cat >"$SKILLS_DIR/quick-scan/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1324,6 +1464,7 @@ Focus: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /quick-scan"
+manifest "CREATED" "~/.claude/skills/quick-scan/SKILL.md"
 
 # ---------------------------------------------------------------------------
 # 5b. AGENT TEAM SKILLS
@@ -1555,6 +1696,7 @@ Request: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /team-start"
+manifest "CREATED" "~/.claude/skills/team-start/SKILL.md"
 
 cat >"$SKILLS_DIR/team-status/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1632,6 +1774,7 @@ Team: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /team-status"
+manifest "CREATED" "~/.claude/skills/team-status/SKILL.md"
 
 cat >"$SKILLS_DIR/team-stop/SKILL.md" <<'SKILL_EOF'
 ---
@@ -1708,6 +1851,7 @@ Team: $ARGUMENTS
 SKILL_EOF
 
 log "Created skill: /team-stop"
+manifest "CREATED" "~/.claude/skills/team-stop/SKILL.md"
 
 # ---------------------------------------------------------------------------
 # 6. Clean up old commands
@@ -1744,7 +1888,7 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║   Setup Complete — v5 · Skills + Agents + Teams · Bedrock  ║${NC}"
+echo -e "${BOLD}║   Setup Complete — v6 · Skills + Agents + Teams            ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  ${BOLD}Architecture:${NC}"
@@ -1795,8 +1939,14 @@ echo -e "    ${GREEN}/team-status {team-name}${NC}          ${DIM}← progress${
 echo -e "    ${GREEN}/team-stop {team-name}${NC}             ${DIM}← cleanup${NC}"
 echo ""
 echo -e "  ${DIM}Installed:${NC}"
-echo -e "    ${DIM}~/.claude/settings.json${NC}"
-echo -e "    ${DIM}~/.claude/CLAUDE.md (appended, not overwritten)${NC}"
+echo -e "    ${DIM}~/.claude/settings.json (merged with existing)${NC}"
+echo -e "    ${DIM}~/.claude/rules/kit/CLAUDE-kit.md (auto-loaded)${NC}"
 echo -e "    ${DIM}~/.claude/agents/*.md  (7 agents)${NC}"
 echo -e "    ${DIM}~/.claude/skills/*/SKILL.md  (12 skills: 9 pipeline + 3 team)${NC}"
+echo -e "    ${DIM}~/.claude/statusline.sh${NC}"
+echo ""
+echo -e "  ${BOLD}Revert:${NC}"
+echo -e "    ${YELLOW}./install.sh --revert${NC}  ${DIM}← removes kit files, restores backups${NC}"
+echo -e "    ${DIM}Manifest: ~/.claude/.kit-manifest${NC}"
+echo -e "    ${DIM}Backups:  ~/.claude/.kit-backup/${NC}"
 echo ""
