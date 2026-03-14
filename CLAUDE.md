@@ -15,7 +15,6 @@ Shell-based installer that configures Claude Code with a Master Engineering work
   - `templates/rules/kit/CLAUDE-kit.md` — Kit documentation (auto-loaded by Claude Code rules)
   - `templates/sample-claude.md` — Reference template for `~/.claude/CLAUDE.md` (not auto-installed)
 - `statusline.sh` — Claude Code status line hook. Reads JSON from stdin via `jq`, outputs a formatted terminal line with color-coded context bar (green <70%, yellow 70-89%, red 90%+).
-- `remove-md-hook.sh` — Utility to remove the everything-claude-code plugin's PreToolUse hook that blocks Write operations on `.md`/`.txt` files.
 - `README.md` — User-facing docs with architecture diagram, skill reference, and pipeline overview.
 
 ## Running
