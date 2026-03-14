@@ -8,10 +8,14 @@ Shell-based installer that configures Claude Code with a Master Engineering work
 
 ## Repository Structure
 
-- `install.sh` — Main installer (~1900 lines). Generates agents, skills, settings (with jq merge), and kit rules. Supports `--revert` for one-click uninstall. See "Navigating install.sh" below.
+- `install.sh` — Main installer (~750 lines). Copies templates, merges settings (with jq), and handles backup/revert. Supports `--revert` for one-click uninstall.
+- `templates/` — 1:1 mirror of `~/.claude/` structure. Edit these directly, then re-run `./install.sh` to copy.
+  - `templates/agents/*.md` — 7 agent definitions
+  - `templates/skills/*/SKILL.md` — 12 skill definitions (matches Claude Code's `skills/<name>/SKILL.md` layout)
+  - `templates/rules/kit/CLAUDE-kit.md` — Kit documentation (auto-loaded by Claude Code rules)
+  - `templates/sample-claude.md` — Reference template for `~/.claude/CLAUDE.md` (not auto-installed)
 - `statusline.sh` — Claude Code status line hook. Reads JSON from stdin via `jq`, outputs a formatted terminal line with color-coded context bar (green <70%, yellow 70-89%, red 90%+).
-- `remove-md-hook.sh` — Utility to remove the everything-claude-code plugin's PreToolUse hook that blocks Write operations on `.md`/`.txt` files. Handles both nested and flat hook JSON structures.
-- `sample-claude.md` — Template for the global `~/.claude/CLAUDE.md` with placeholder sections (About, Tech Stack, etc.) for users to customize.
+- `remove-md-hook.sh` — Utility to remove the everything-claude-code plugin's PreToolUse hook that blocks Write operations on `.md`/`.txt` files.
 - `README.md` — User-facing docs with architecture diagram, skill reference, and pipeline overview.
 
 ## Running
@@ -25,25 +29,25 @@ No build system, no tests, no dependencies beyond `jq` (auto-installed by the sc
 
 ## Navigating install.sh
 
-The installer is a single large script organized into numbered sections. Each section is delimited by comment bars (`# ---...---`):
+The installer is organized into numbered sections delimited by comment bars (`# ---...---`):
 
 | Section | What it does |
 |---------|--------------|
-| Top (after helpers) | `BACKUP_DIR`, `MANIFEST_FILE`, `manifest()` helper, `revert_kit()` function, `--revert` flag parsing |
-| 0. Pre-flight | Checks for `claude` CLI and `jq` |
+| Top (after helpers) | `SCRIPT_DIR`, `TEMPLATES_DIR`, `manifest()`, `install_template()`, `revert_kit()`, flag parsing |
+| 0. Pre-flight | Checks for `claude` CLI, `jq`, and `templates/` directory |
 | 1. Directories + manifest init | Creates `agents/`, `rules/kit/`, `skills/*/`; initializes manifest |
 | 2. settings.json | jq deep-merge with existing (kit defaults as base, user values win); backup to `.kit-backup/` |
 | 2b. statusline.sh | Copies with backup of existing |
-| 3. Kit rules | Writes `rules/kit/CLAUDE-kit.md` (auto-loaded); strips legacy CLAUDE.md markers if present |
-| 4. Agents | 7 agent `.md` files via `<<'AGENT_EOF'` heredocs |
-| 5. Skills | 12 skill `SKILL.md` files via `<<'SKILL_EOF'` heredocs |
+| 3. Kit rules | Copies `templates/rules/CLAUDE-kit.md`; strips legacy CLAUDE.md markers if present |
+| 4. Agents | Copies 7 agent `.md` files from `templates/agents/` |
+| 5. Skills | Copies 12 skill `.md` files from `templates/skills/` |
 | 6. Cleanup | Warns about deprecated `~/.claude/commands/` |
 | 7. claude-squad | Optional installation prompt |
 | 8. Summary | Final output with revert instructions |
 
 ## Key Design Decisions
 
-- **Heredoc-based file generation**: All agents and skills are generated via heredocs inside `install.sh`. Agents use `<<'AGENT_EOF'`, skills use `<<'SKILL_EOF'`, kit defaults use a `KIT_DEFAULTS` shell variable.
+- **Template-based file generation**: `templates/` mirrors the `~/.claude/` directory structure 1:1. The installer copies each file via `install_template <relative-path>` (e.g. `install_template "agents/dev.md"` → `~/.claude/agents/dev.md`). No name mapping or path translation. Only `settings.json` (which requires jq merge) uses inline shell logic.
 - **jq deep-merge for settings.json**: Existing `settings.json` is backed up to `.kit-backup/`, then merged with kit defaults using a recursive `deep_merge` jq function. User values win for scalars/objects; arrays (permissions) are unioned and deduplicated.
 - **Kit rules in `~/.claude/rules/kit/`**: Kit content (skills, agents, teams documentation) is written to `~/.claude/rules/kit/CLAUDE-kit.md` which Claude Code auto-loads via the rules system. The installer never appends to `~/.claude/CLAUDE.md` — it only strips legacy markers if found from previous installs.
 - **Backup manifest**: `~/.claude/.kit-manifest` tracks all created/modified files. `~/.claude/.kit-backup/` stores pre-install copies. `./install.sh --revert` reads the manifest to delete kit files and restore backups.
@@ -83,10 +87,15 @@ The installer is a single large script organized into numbered sections. Each se
 
 To modify agent or skill definitions:
 
-1. Find the corresponding heredoc block in `install.sh` (search for `cat >"$AGENTS_DIR/` or `cat >"$SKILLS_DIR/`)
-2. Edit the content between `<<'AGENT_EOF'`/`<<'SKILL_EOF'` and the closing delimiter
-3. Re-run `./install.sh` to regenerate files
+1. Edit the file in `templates/` (same path as `~/.claude/`)
+2. Re-run `./install.sh` to copy updated files
 
-To modify kit defaults for settings.json: edit the `KIT_DEFAULTS` variable in section 2.
+To sync from your live `~/.claude/` back to the repo (paths are identical):
+```bash
+cp ~/.claude/agents/team-lead.md templates/agents/team-lead.md
+cp ~/.claude/skills/lead-start/SKILL.md templates/skills/lead-start/SKILL.md
+```
 
-To modify kit rules content: edit the `<<'KIT_EOF'` heredoc in section 3.
+To modify kit defaults for settings.json: edit the `KIT_DEFAULTS` variable in section 2 of `install.sh`.
+
+To modify kit rules content: edit `templates/rules/CLAUDE-kit.md`.
