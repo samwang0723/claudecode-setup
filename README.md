@@ -2,7 +2,17 @@
 
 Skills + Agents architecture. Git worktree isolation. Stateful tasks.
 
-## What Changed (v4 → v5)
+## What Changed
+
+### v5 → v6
+
+| v5                                       | v6                                                        |
+| ---------------------------------------- | --------------------------------------------------------- |
+| claude-squad optional install            | RTK (Rust Token Killer) auto-install for 60-90% token savings |
+| 12 skills (9 pipeline + 3 team)          | 15 skills (+`/api-design`, `/write-prd`, `/write-tech-spec`) |
+| `--revert` only                          | `--revert`, `--dry-run`, `--yes` flags                    |
+
+### v4 → v5
 
 | v4 (deprecated)              | v5                                                        |
 | ---------------------------- | --------------------------------------------------------- |
@@ -22,7 +32,15 @@ Your old `~/.claude/commands/` still work but are deprecated. Skills are the off
 chmod +x install.sh && ./install.sh
 ```
 
-Requires `jq` (auto-installed by the script if missing) and the Claude Code CLI.
+Requires `jq` (auto-installed by the script if missing) and the Claude Code CLI. RTK is auto-installed during setup.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--revert` | One-click uninstall: removes kit files, restores backups |
+| `--dry-run` | Preview what would change without modifying any files |
+| `--yes` | Auto-approve all prompts (non-interactive install) |
 
 ### Uninstall
 
@@ -65,6 +83,9 @@ flowchart TB
         STR["/strategy"]
         SC["/scope"]
         QS["/quick-scan"]
+        AD["/api-design"]
+        WP["/write-prd"]
+        WTS["/write-tech-spec"]
     end
 
     subgraph "Agents (~/.claude/agents/)"
@@ -80,8 +101,8 @@ flowchart TB
         EXP["🔭 explorer"]
     end
 
-    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS
-    LS & LSM & LC & RP & AR & INV & STR & SC & QS -->|"context:fork\nagent:team-lead"| TL
+    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS
+    LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS -->|"context:fork\nagent:team-lead"| TL
     TL --> ARCH & D1 & D2 & D3 & PM & QA & SEC & AG & EXP
 
     style Master fill:#f9a825,stroke:#f57f17,color:#000
@@ -125,7 +146,10 @@ flowchart TB
 │   ├── quick-scan/SKILL.md           ← health check
 │   ├── team-start/SKILL.md           ← spawn agent team (tmux)
 │   ├── team-status/SKILL.md          ← check team progress
-│   └── team-stop/SKILL.md            ← cleanup team
+│   ├── team-stop/SKILL.md            ← cleanup team
+│   ├── api-design/SKILL.md           ← REST API design patterns
+│   ├── write-prd/SKILL.md            ← product requirements document
+│   └── write-tech-spec/SKILL.md      ← technical specification
 ├── .kit-manifest                     ← tracks all created/modified files
 └── .kit-backup/                      ← pre-install backups
 ```
@@ -196,6 +220,14 @@ agent: team-lead # delegate to team-lead agent
 | `/strategy <decision>`          | Decisions    | PM → architect → security → recommendation         |
 | `/scope <project>`              | Planning     | MoSCoW → design → security → go/no-go              |
 | `/quick-scan [focus]`           | Health check | Structure → tests → quality                        |
+
+### Document Skills
+
+| Skill                           | Trigger        | What it does                                       |
+| ------------------------------- | -------------- | -------------------------------------------------- |
+| `/api-design`                   | API design     | REST patterns: naming, status codes, pagination, versioning |
+| `/write-prd`                    | PRD creation   | Product requirements document with template        |
+| `/write-tech-spec`              | Tech spec      | Technical specification document with template     |
 
 ### Agent Team Skills
 

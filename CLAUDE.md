@@ -8,10 +8,10 @@ Shell-based installer that configures Claude Code with a Master Engineering work
 
 ## Repository Structure
 
-- `install.sh` — Main installer (~750 lines). Copies templates, merges settings (with jq), and handles backup/revert. Supports `--revert` for one-click uninstall.
+- `install.sh` — Main installer (~765 lines). Copies templates, merges settings (with jq), and handles backup/revert. Supports `--revert`, `--dry-run`, and `--yes` flags.
 - `templates/` — 1:1 mirror of `~/.claude/` structure. Edit these directly, then re-run `./install.sh` to copy.
   - `templates/agents/*.md` — 7 agent definitions
-  - `templates/skills/*/SKILL.md` — 12 skill definitions (matches Claude Code's `skills/<name>/SKILL.md` layout)
+  - `templates/skills/*/SKILL.md` — 15 skill definitions (matches Claude Code's `skills/<name>/SKILL.md` layout)
   - `templates/rules/kit/CLAUDE-kit.md` — Kit documentation (auto-loaded by Claude Code rules)
   - `templates/sample-claude.md` — Reference template for `~/.claude/CLAUDE.md` (not auto-installed)
 - `statusline.sh` — Claude Code status line hook. Reads JSON from stdin via `jq`, outputs a formatted terminal line with color-coded context bar (green <70%, yellow 70-89%, red 90%+).
@@ -22,9 +22,11 @@ Shell-based installer that configures Claude Code with a Master Engineering work
 ```bash
 chmod +x install.sh && ./install.sh     # install/update
 ./install.sh --revert                    # one-click uninstall
+./install.sh --dry-run                   # preview changes without modifying files
+./install.sh --yes                       # auto-approve prompts
 ```
 
-No build system, no tests, no dependencies beyond `jq` (auto-installed by the script) and the Claude Code CLI.
+No build system, no tests, no dependencies beyond `jq` (auto-installed by the script), RTK (auto-installed), and the Claude Code CLI.
 
 ## Navigating install.sh
 
@@ -39,9 +41,9 @@ The installer is organized into numbered sections delimited by comment bars (`# 
 | 2b. statusline.sh | Copies with backup of existing |
 | 3. Kit rules | Copies `templates/rules/CLAUDE-kit.md`; strips legacy CLAUDE.md markers if present |
 | 4. Agents | Copies 7 agent `.md` files from `templates/agents/` |
-| 5. Skills | Copies 12 skill `.md` files from `templates/skills/` |
+| 5. Skills | Copies 15 skill `.md` files from `templates/skills/` |
 | 6. Cleanup | Warns about deprecated `~/.claude/commands/` |
-| 7. claude-squad | Optional installation prompt |
+| 7. RTK | Installs RTK (Rust Token Killer) token-optimized CLI proxy; runs `rtk init -g` |
 | 8. Summary | Final output with revert instructions |
 
 ## Key Design Decisions
@@ -59,7 +61,7 @@ The installer is organized into numbered sections delimited by comment bars (`# 
 | Target | Count | Purpose |
 |--------|-------|---------|
 | `~/.claude/agents/*.md` | 7 | team-lead, architect, dev, qa, security-reviewer, pm, explorer |
-| `~/.claude/skills/*/SKILL.md` | 12 | 9 pipeline + 3 team skills |
+| `~/.claude/skills/*/SKILL.md` | 15 | 9 pipeline + 3 team + 3 document skills |
 | `~/.claude/rules/kit/CLAUDE-kit.md` | 1 | Kit documentation (auto-loaded by Claude Code rules) |
 | `~/.claude/settings.json` | merge | Permissions, model, env vars, plugins (merged with existing) |
 | `~/.claude/statusline.sh` | 1 | Status line display hook |
