@@ -659,30 +659,29 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Optional: claude-squad
+# 7. RTK (Rust Token Killer) — token-optimized CLI proxy
 # ---------------------------------------------------------------------------
-step "Optional components..."
+step "Installing RTK..."
 if $DRY_RUN; then
-	info "Would prompt for claude-squad installation (skipped in dry-run)"
-elif $YES_FLAG; then
-	info "Skipped claude-squad prompt (--yes flag)"
+	info "Would install RTK (Rust Token Killer) if not present"
+	info "Would run 'rtk init -g --auto-patch --claude-md -u'"
+elif command -v rtk &>/dev/null; then
+	log "RTK already installed ($(rtk --version 2>/dev/null || echo 'unknown version'))"
+	rtk init -g --auto-patch --claude-md -u 2>/dev/null && log "RTK global config updated" || warn "rtk init -g had issues — check manually"
 else
-	echo ""
-	info "Optional: Install claude-squad for parallel tmux sessions?"
-	read -p "  Install? [y/N] " -n 1 -r
-	echo ""
-
-	if [[ $REPLY =~ ^[Yy]$ ]]; then
-		if command -v brew &>/dev/null; then
-			brew install claude-squad 2>/dev/null &&
-				ln -sf "$(brew --prefix)/bin/claude-squad" "$(brew --prefix)/bin/cs" 2>/dev/null
-			log "claude-squad installed (alias: cs)"
-		else
-			curl -fsSL https://raw.githubusercontent.com/smtg-ai/claude-squad/main/install.sh | bash
-			log "claude-squad installed"
-		fi
+	info "Installing RTK (Rust Token Killer)..."
+	if command -v brew &>/dev/null; then
+		brew install rtk 2>/dev/null && log "RTK installed via Homebrew" || {
+			warn "brew install failed — trying curl installer..."
+			curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh && log "RTK installed via curl" || err "RTK installation failed — install manually: https://github.com/rtk-ai/rtk#installation"
+		}
+	elif command -v cargo &>/dev/null; then
+		cargo install --git https://github.com/rtk-ai/rtk 2>/dev/null && log "RTK installed via cargo" || err "RTK installation failed — install manually: https://github.com/rtk-ai/rtk#installation"
 	else
-		info "Skipped"
+		curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh && log "RTK installed via curl" || err "RTK installation failed — install manually: https://github.com/rtk-ai/rtk#installation"
+	fi
+	if command -v rtk &>/dev/null; then
+		rtk init -g --auto-patch --claude-md -u 2>/dev/null && log "RTK global config initialized" || warn "rtk init -g had issues — check manually"
 	fi
 fi
 
