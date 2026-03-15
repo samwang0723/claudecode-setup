@@ -49,8 +49,16 @@ EMPTY=$((10 - FILLED))
 BAR=$(printf "%${FILLED}s" | tr ' ' '█')$(printf "%${EMPTY}s" | tr ' ' '░')
 
 # ── Duration ─────────────────────────────────────────────────────────────
-MINS=$((DURATION_MS / 60000))
-SECS=$(((DURATION_MS % 60000) / 1000))
+TOTAL_SECS=$((DURATION_MS / 1000))
+DAYS=$((TOTAL_SECS / 86400))
+HOURS=$(( (TOTAL_SECS % 86400) / 3600 ))
+MINS=$(( (TOTAL_SECS % 3600) / 60 ))
+SECS=$((TOTAL_SECS % 60))
+TIME_FMT=""
+(( DAYS > 0 )) && TIME_FMT+="${DAYS}d "
+(( HOURS > 0 )) && TIME_FMT+="${HOURS}h "
+(( MINS > 0 )) && TIME_FMT+="${MINS}m "
+TIME_FMT+="${SECS}s"
 
 # ── Git branch ───────────────────────────────────────────────────────────
 BRANCH=""
@@ -65,5 +73,5 @@ CR_F=$(fmt "$CACHE_R")
 TOTAL_F=$(fmt $((IN_TOK + OUT_TOK)))
 
 # ── Render ───────────────────────────────────────────────────────────────
-echo -e "  ${CYAN}[${MODEL}]${RESET} 📁 \033[94m${DIR##*/}${RESET}${BRANCH} | ${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET} | ⏱️ ${DIM}${MINS}m ${SECS}s${RESET}"
+echo -e "  ${CYAN}[${MODEL}]${RESET} 📁 \033[94m${DIR##*/}${RESET}${BRANCH} | ${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET} | ⏱️ ${DIM}${TIME_FMT}${RESET}"
 echo -e "  ${DIM}in${RESET} ${IN_F} ${DIM}·${RESET} ${DIM}out${RESET} ${OUT_F} ${DIM}·${RESET} ${DIM}cached${RESET} ${CW_F} ${DIM}·${RESET} ${DIM}read${RESET} ${CR_F} ${DIM}·${RESET} ${DIM}total${RESET} ${TOTAL_F}"
