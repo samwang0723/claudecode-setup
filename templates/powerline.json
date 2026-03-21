@@ -48,11 +48,6 @@
             "showMessageCount": true,
             "showLinesAdded": true,
             "showLinesRemoved": true
-          },
-          "env": {
-            "enabled": true,
-            "variable": "CLAUDE_ACCOUNT",
-            "prefix": "Acct"
           }
         }
       }

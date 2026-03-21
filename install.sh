@@ -466,6 +466,8 @@ if $DRY_RUN; then
 				end;
 
 			deep_merge($kit; $user[0])
+			# Force-override: statusLine always uses kit value
+			| if $kit | has("statusLine") then .statusLine = $kit.statusLine else . end
 			' 2>/dev/null || echo "$KIT_DEFAULTS")
 		diff <(jq --sort-keys . "$SETTINGS_FILE") <(echo "$MERGED" | jq --sort-keys .) || true
 	else
@@ -488,6 +490,7 @@ else
 			# Objects merge recursively (user wins per key)
 			# Arrays union + deduplicate (both kit and user entries kept)
 			# Scalars: user value wins if present
+			# Exception: "statusLine" is always overridden by kit (force-update)
 			MERGED=$(jq -n \
 				--argjson kit "$KIT_DEFAULTS" \
 				--slurpfile user "$SETTINGS_FILE" \
@@ -511,6 +514,8 @@ else
 					end;
 
 				deep_merge($kit; $user[0])
+				# Force-override: statusLine always uses kit value
+				| if $kit | has("statusLine") then .statusLine = $kit.statusLine else . end
 				')
 
 			# Validate merge output before writing
