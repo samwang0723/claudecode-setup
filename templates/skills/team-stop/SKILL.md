@@ -43,30 +43,31 @@ Proceed? (awaiting confirmation)
 
 ### 3. Clean Up (after Master confirms)
 1. Load `TeamDelete` tool (via ToolSearch) → delete team config.
-2. **Kill all idle agent tmux panes but leave the main session intact.**
-   List tmux panes, identify agent/teammate panes, and kill them individually:
-   ```bash
-   # Kill agent panes (NOT the main session pane)
-   tmux list-panes -a -F '#{pane_id} #{pane_title}' | grep -i 'teammate\|agent\|dev-' | awk '{print $1}' | xargs -I{} tmux kill-pane -t {}
-   ```
-3. **Check for uncommitted changes** in each worktree before removal:
+2. **Check for uncommitted changes** in each worktree before removal:
    ```bash
    cd .worktrees/{slug}/dev-{N} && git status --porcelain
    ```
    If any worktree has uncommitted changes, warn Master and list the affected files.
    Do NOT proceed with removal until Master confirms it is safe to discard or commits are made.
-4. Remove worktrees:
+3. Remove worktrees:
    ```bash
    git worktree remove .worktrees/{slug}/dev-{N} --force
    ```
-5. Delete dev branches:
+4. Delete dev branches:
    ```bash
    git branch -D {slug}/dev-{N}
    ```
-6. Remove empty worktree directories.
-7. Update `_status.md`:
+5. Remove empty worktree directories.
+6. Update `_status.md`:
    - Worktrees → `(cleaned up {date})`
    - Add note: "Team disbanded. Task docs preserved."
+7. Sometimes `TeamDelete` not working and sub-agent not responding, **Kill all idle agent tmux panes but leave the main session intact.**
+   List tmux panes, identify agent/teammate panes, and kill them individually:
+   ```bash
+   # Kill agent panes (NOT the main session pane)
+   tmux list-panes -a -F '#{pane_id} #{pane_title}' | grep -i 'teammate\|agent\|dev-' | awk '{print $1}' | xargs -I{} tmux kill-pane -t {}
+   ```
+
 
 ### 4. Report
 ```
