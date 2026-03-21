@@ -129,7 +129,7 @@ flowchart TD
 
 | Field | Details |
 |---|---|
-| **ID - Jira Ticket** | |
+| **ID - Ticket** | |
 | **Involvement** | |
 | **User Story** | |
 | **Priority** | |
@@ -147,7 +147,7 @@ flowchart TD
 
 | Field | Details |
 |---|---|
-| **ID - Jira Ticket** | |
+| **ID - Ticket** | |
 | **User Story** | As an internal user, I want to implement A/B testing of the above features and have event tracking on both Firebase (for testing) and Segment (for analysis) |
 | **Priority** | Must-have |
 | **Acceptance Criteria** | The tracking plan is as below: Add link to event tracking sheet |
@@ -159,6 +159,6 @@ flowchart TD
 - Always use **Given-When-Then** format for user stories
 - Prioritize requirements as P0 (must-have), P1 (should-have), P2 (nice-to-have)
 - Include mermaid flowcharts where appropriate to visualize user flows
-- Link to Jira tickets and Confluence pages when available
+- Link to Jira tickets (Or other tickets) and Confluence pages (Or Links) when available
 - Fill in stakeholder roles based on what the user provides; leave blank if unknown
 - Set the document status to "Draft" initially

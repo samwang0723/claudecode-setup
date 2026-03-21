@@ -2,7 +2,7 @@
 name: knowledge
 description: >
   Search, browse, and update the Obsidian knowledge vault using the Obsidian CLI.
-  Use when asked about fiat SOPs, interview questions, engineering references,
+  Use when asked about SOPs, interview questions, engineering references,
   project docs, commands, or anything that might be in personal notes.
 ---
 
@@ -13,24 +13,12 @@ Personal Obsidian knowledge base for Sam Wang.
 ## Setup
 
 - **Vault name**: `knowledge`
-- **Vault path**: `/Users/samwang/.claude/knowledge/`
+- **Vault path**: `~/.claude/knowledge/`
 - **CLI binary**: `/Applications/Obsidian.app/Contents/MacOS/obsidian`
 - **Prerequisite**: Obsidian app must be running for CLI commands to work.
 
 > **Fallback**: If Obsidian is not running (CLI returns error), fall back to filesystem tools
 > (Grep, Read, Glob) with the vault path above.
-
-## Folder Structure
-
-| Folder | Purpose | Examples |
-|--------|---------|---------|
-| `00-Active/` | Current work (2025-2026) | Card Lifestyle Offset Agent, Clowdbot, Lynq-Cubix, ACME, React Native, proposals |
-| `01-Reference/` | Evergreen SOPs & knowledge | Commands.md (master ref), Fiat Critical Knowledge, Entity Migration, GPG YubiKey Setup, auth flows |
-| `02-Engineering/` | Tech skills & tools | Coding Patterns, System Design, Kubernetes, Rust, React, PostgreSQL, MCP, AI tools |
-| `03-People/` | Interviews, hiring, career | Interview question banks, JD templates, performance reviews |
-| `04-Projects/` | Named project docs | Project Harbour, Bankie System, Project Allison, Jarvis |
-| `99-Archive/` | Historical (read-only) | Migrations/, Incidents/, Completed-Projects/, Legacy-Setup/ |
-| `assets/` | Images, attachments | Screenshots, swagger.yaml, javascript.zip |
 
 ## Operations
 
@@ -82,8 +70,6 @@ obsidian folders
 # Folder info (file count, size)
 obsidian folder path="02-Engineering"
 ```
-
-Valid folders: `00-Active`, `01-Reference`, `02-Engineering`, `03-People`, `04-Projects`, `99-Archive`, `99-Archive/Migrations`, `99-Archive/Incidents`, `99-Archive/Completed-Projects`, `99-Archive/Legacy-Setup`
 
 ### Read: `/knowledge read <filename>`
 
@@ -249,7 +235,7 @@ When searching, target the right folder:
 3. If updating a note, prefer `obsidian append`/`obsidian prepend` for additive changes. Use Edit tool only for surgical replacements within a section.
 4. For new notes, follow the existing naming convention (Title Case, descriptive names).
 5. Never delete notes without explicit confirmation.
-6. If the CLI returns an error (Obsidian not running), fall back to filesystem tools with the vault path `/Users/samwang/.claude/knowledge/`.
+6. If the CLI returns an error (Obsidian not running), fall back to filesystem tools with the vault path `~/.claude/knowledge/`.
 
 ---
 

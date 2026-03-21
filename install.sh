@@ -24,9 +24,20 @@ err() { echo -e "${RED}[✗]${NC} $1"; }
 info() { echo -e "${BLUE}[→]${NC} $1"; }
 
 BOX_W=60
-box_top()  { local bar; bar=$(printf '%0.s=' $(seq 1 $BOX_W)); echo -e "${BOLD}+${bar}+${NC}"; }
-box_bot()  { local bar; bar=$(printf '%0.s=' $(seq 1 $BOX_W)); echo -e "${BOLD}+${bar}+${NC}"; }
-box_line() { printf -v _pad "%-${BOX_W}s" "$1"; echo -e "${BOLD}|${_pad}|${NC}"; }
+box_top() {
+	local bar
+	bar=$(printf '%0.s=' $(seq 1 $BOX_W))
+	echo -e "${BOLD}+${bar}+${NC}"
+}
+box_bot() {
+	local bar
+	bar=$(printf '%0.s=' $(seq 1 $BOX_W))
+	echo -e "${BOLD}+${bar}+${NC}"
+}
+box_line() {
+	printf -v _pad "%-${BOX_W}s" "$1"
+	echo -e "${BOLD}|${_pad}|${NC}"
+}
 
 TOTAL_STEPS=9
 CURRENT_STEP=0
@@ -149,9 +160,9 @@ revert_kit() {
 		# Also strip preceding blank lines (up to 2)
 		local start_line=$((marker_line > 2 ? marker_line - 2 : marker_line))
 		# Cross-platform sed: use temp file + mv instead of sed -i
-		sed "${start_line},\$d" "$global_claude_md" > "$global_claude_md.tmp" && mv "$global_claude_md.tmp" "$global_claude_md"
+		sed "${start_line},\$d" "$global_claude_md" >"$global_claude_md.tmp" && mv "$global_claude_md.tmp" "$global_claude_md"
 		# Trim trailing blank lines
-		sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$global_claude_md" > "$global_claude_md.tmp" && mv "$global_claude_md.tmp" "$global_claude_md"
+		sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$global_claude_md" >"$global_claude_md.tmp" && mv "$global_claude_md.tmp" "$global_claude_md"
 		log "Stripped old kit sections from CLAUDE.md (backed up to .kit-backup/)"
 	fi
 
@@ -161,7 +172,10 @@ revert_kit() {
 	done
 	[ -d "$CLAUDE_DIR/skills" ] && [ -z "$(ls -A "$CLAUDE_DIR/skills" 2>/dev/null)" ] && rmdir "$CLAUDE_DIR/skills" 2>/dev/null || true
 	[ -d "$CLAUDE_DIR/agents" ] && [ -z "$(ls -A "$CLAUDE_DIR/agents" 2>/dev/null)" ] && rmdir "$CLAUDE_DIR/agents" 2>/dev/null || true
-	[ -d "$CLAUDE_DIR/rules/kit" ] && [ -z "$(ls -A "$CLAUDE_DIR/rules/kit" 2>/dev/null)" ] && rmdir "$CLAUDE_DIR/rules/kit" 2>/dev/null || true
+	for rule_dir in "$CLAUDE_DIR/rules"/*/; do
+		[ -d "$rule_dir" ] && [ -z "$(ls -A "$rule_dir" 2>/dev/null)" ] && rmdir "$rule_dir" 2>/dev/null || true
+	done
+	[ -d "$CLAUDE_DIR/rules" ] && [ -z "$(ls -A "$CLAUDE_DIR/rules" 2>/dev/null)" ] && rmdir "$CLAUDE_DIR/rules" 2>/dev/null || true
 
 	# Remove manifest and backup dir
 	rm -f "$MANIFEST_FILE"
@@ -259,33 +273,45 @@ fi
 step "Creating directories..."
 AGENTS_DIR="$CLAUDE_DIR/agents"
 SKILLS_DIR="$CLAUDE_DIR/skills"
-RULES_KIT_DIR="$CLAUDE_DIR/rules/kit"
+RULES_DIR="$CLAUDE_DIR/rules"
 
-# Auto-discover agents and skills from templates/
+# Auto-discover agents, skills, and rule subdirectories from templates/
 AGENT_NAMES=""
 for f in "$TEMPLATES_DIR"/agents/*.md; do
 	[ -f "$f" ] && AGENT_NAMES="$AGENT_NAMES $(basename "$f" .md)"
 done
-AGENT_NAMES="${AGENT_NAMES# }"  # trim leading space
+AGENT_NAMES="${AGENT_NAMES# }" # trim leading space
 
 SKILL_NAMES=""
 for d in "$TEMPLATES_DIR"/skills/*/; do
 	[ -f "$d/SKILL.md" ] && SKILL_NAMES="$SKILL_NAMES $(basename "$d")"
 done
-SKILL_NAMES="${SKILL_NAMES# }"  # trim leading space
+SKILL_NAMES="${SKILL_NAMES# }" # trim leading space
+
+RULE_DIRS=""
+for d in "$TEMPLATES_DIR"/rules/*/; do
+	[ -d "$d" ] && RULE_DIRS="$RULE_DIRS $(basename "$d")"
+done
+RULE_DIRS="${RULE_DIRS# }" # trim leading space
 
 AGENT_COUNT=$(echo "$AGENT_NAMES" | wc -w | tr -d ' ')
 SKILL_COUNT=$(echo "$SKILL_NAMES" | wc -w | tr -d ' ')
+RULE_DIR_COUNT=$(echo "$RULE_DIRS" | wc -w | tr -d ' ')
 
 if $DRY_RUN; then
 	info "Would create ~/.claude/agents/"
-	info "Would create ~/.claude/rules/kit/"
+	for rule_dir in $RULE_DIRS; do
+		info "Would create ~/.claude/rules/$rule_dir/"
+	done
 	info "Would create ~/.claude/.kit-backup/"
 	for skill in $SKILL_NAMES; do
 		info "Would create ~/.claude/skills/$skill/"
 	done
 else
-	mkdir -p "$AGENTS_DIR" "$RULES_KIT_DIR" "$BACKUP_DIR" "$SKILLS_DIR"
+	mkdir -p "$AGENTS_DIR" "$BACKUP_DIR" "$SKILLS_DIR"
+	for rule_dir in $RULE_DIRS; do
+		mkdir -p "$RULES_DIR/$rule_dir"
+	done
 
 	# Version tracking — detect upgrade vs re-install
 	if [ -f "$MANIFEST_FILE" ]; then
@@ -307,11 +333,13 @@ VERSION:${KIT_VERSION}
 MANIFEST_HEADER
 
 	manifest "CREATED_DIR" "~/.claude/agents"
-	manifest "CREATED_DIR" "~/.claude/rules/kit"
+	for rule_dir in $RULE_DIRS; do
+		manifest "CREATED_DIR" "~/.claude/rules/$rule_dir"
+	done
 	for skill in $SKILL_NAMES; do
 		manifest "CREATED_DIR" "~/.claude/skills/$skill"
 	done
-	log "Created ~/.claude/agents/, ~/.claude/rules/kit/, and ~/.claude/skills/*/"
+	log "Created ~/.claude/agents/, ~/.claude/rules/*/ ($RULE_DIR_COUNT), and ~/.claude/skills/*/"
 fi
 
 # ---------------------------------------------------------------------------
@@ -321,7 +349,8 @@ step "Merging settings.json..."
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 
 # Kit default settings
-KIT_DEFAULTS=$(cat <<'DEFAULTS_EOF'
+KIT_DEFAULTS=$(
+	cat <<'DEFAULTS_EOF'
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
@@ -331,10 +360,11 @@ KIT_DEFAULTS=$(cat <<'DEFAULTS_EOF'
     "MAX_THINKING_TOKENS": "8192",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
     "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS": "45000",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "0"
   },
-  "model": "opus",
-  "effortLevel": "high",
+  "model": "opus[1m]",
+  "effortLevel": "medium",
   "alwaysThinkingEnabled": true,
   "showTurnDuration": true,
   "cleanupPeriodDays": 90,
@@ -563,48 +593,70 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Kit rules — ~/.claude/rules/kit/CLAUDE-kit.md (auto-loaded by Claude Code)
+# 3. Rules — ~/.claude/rules/*/ (auto-loaded by Claude Code)
 # ---------------------------------------------------------------------------
-step "Setting up kit rules..."
+step "Installing rules ($RULE_DIR_COUNT directories)..."
 if $DRY_RUN; then
-	info "Would create ~/.claude/rules/kit/CLAUDE-kit.md"
+	for rule_dir in $RULE_DIRS; do
+		local_count=$(find "$TEMPLATES_DIR/rules/$rule_dir" -type f | wc -l | tr -d ' ')
+		info "Would install ~/.claude/rules/$rule_dir/ ($local_count files)"
+	done
 	info "Would handle CLAUDE.md legacy markers + kit reference"
 else
 
-install_template "rules/kit/CLAUDE-kit.md"
-log "Created rules/kit/CLAUDE-kit.md (auto-loaded by Claude Code)"
+	# Copy all rule directories from templates
+	for rule_dir in $RULE_DIRS; do
+		rule_src="$TEMPLATES_DIR/rules/$rule_dir"
+		rule_dst="$RULES_DIR/$rule_dir"
 
-# --- Handle CLAUDE.md: strip legacy markers, create minimal if missing ---
-GLOBAL_CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
-LEGACY_MARKER="## Architecture: Skills + Agents"
+		# Remove existing rule directory to ensure clean state
+		if [ -d "$rule_dst" ]; then
+			rm -rf "$rule_dst"
+		fi
 
-KIT_REF_MARKER="@rules/kit/CLAUDE-kit.md"
+		# Copy entire rule directory
+		cp -R "$rule_src" "$rule_dst"
 
-if [ -f "$GLOBAL_CLAUDE_MD" ]; then
-	if grep -qF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD"; then
-		warn "Found old kit sections in CLAUDE.md — stripping (content now in rules/kit/)"
-		cp "$GLOBAL_CLAUDE_MD" "$BACKUP_DIR/CLAUDE.md"
-		manifest "BACKED_UP" "~/.claude/CLAUDE.md"
-		MARKER_LINE=$(grep -nF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD" | head -1 | cut -d: -f1)
-		# Also strip preceding blank lines (up to 2)
-		START_LINE=$((MARKER_LINE > 2 ? MARKER_LINE - 2 : MARKER_LINE))
-		# Cross-platform sed: use temp file + mv instead of sed -i
-		sed "${START_LINE},\$d" "$GLOBAL_CLAUDE_MD" > "$GLOBAL_CLAUDE_MD.tmp" && mv "$GLOBAL_CLAUDE_MD.tmp" "$GLOBAL_CLAUDE_MD"
-		# Trim trailing blank lines
-		sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$GLOBAL_CLAUDE_MD" > "$GLOBAL_CLAUDE_MD.tmp" && mv "$GLOBAL_CLAUDE_MD.tmp" "$GLOBAL_CLAUDE_MD"
-		log "Stripped old kit sections from CLAUDE.md (backed up to .kit-backup/)"
-	fi
+		# Manifest all files
+		find "$rule_dst" -type f | while read -r f; do
+			rel="${f#$CLAUDE_DIR/}"
+			manifest "CREATED" "~/.claude/$rel"
+		done
 
-	# Add kit reference if not already present
-	if ! grep -qF "$KIT_REF_MARKER" "$GLOBAL_CLAUDE_MD"; then
-		printf '\n%s\n' "$KIT_REF_MARKER" >>"$GLOBAL_CLAUDE_MD"
-		log "Added kit reference to CLAUDE.md"
+		log "Created rules/$rule_dir/"
+	done
+
+	# --- Handle CLAUDE.md: strip legacy markers, create minimal if missing ---
+	GLOBAL_CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
+	LEGACY_MARKER="## Architecture: Skills + Agents"
+
+	KIT_REF_MARKER="@rules/kit/CLAUDE-kit.md"
+
+	if [ -f "$GLOBAL_CLAUDE_MD" ]; then
+		if grep -qF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD"; then
+			warn "Found old kit sections in CLAUDE.md — stripping (content now in rules/kit/)"
+			cp "$GLOBAL_CLAUDE_MD" "$BACKUP_DIR/CLAUDE.md"
+			manifest "BACKED_UP" "~/.claude/CLAUDE.md"
+			MARKER_LINE=$(grep -nF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD" | head -1 | cut -d: -f1)
+			# Also strip preceding blank lines (up to 2)
+			START_LINE=$((MARKER_LINE > 2 ? MARKER_LINE - 2 : MARKER_LINE))
+			# Cross-platform sed: use temp file + mv instead of sed -i
+			sed "${START_LINE},\$d" "$GLOBAL_CLAUDE_MD" >"$GLOBAL_CLAUDE_MD.tmp" && mv "$GLOBAL_CLAUDE_MD.tmp" "$GLOBAL_CLAUDE_MD"
+			# Trim trailing blank lines
+			sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$GLOBAL_CLAUDE_MD" >"$GLOBAL_CLAUDE_MD.tmp" && mv "$GLOBAL_CLAUDE_MD.tmp" "$GLOBAL_CLAUDE_MD"
+			log "Stripped old kit sections from CLAUDE.md (backed up to .kit-backup/)"
+		fi
+
+		# Add kit reference if not already present
+		if ! grep -qF "$KIT_REF_MARKER" "$GLOBAL_CLAUDE_MD"; then
+			printf '\n%s\n' "$KIT_REF_MARKER" >>"$GLOBAL_CLAUDE_MD"
+			log "Added kit reference to CLAUDE.md"
+		else
+			info "CLAUDE.md already has kit reference — skipping"
+		fi
 	else
-		info "CLAUDE.md already has kit reference — skipping"
-	fi
-else
-	warn "No CLAUDE.md found — creating minimal one"
-	cat >"$GLOBAL_CLAUDE_MD" <<'CLAUDE_MINIMAL_EOF'
+		warn "No CLAUDE.md found — creating minimal one"
+		cat >"$GLOBAL_CLAUDE_MD" <<'CLAUDE_MINIMAL_EOF'
 # CLAUDE.md
 
 Global instructions for Claude Code.
@@ -613,9 +665,9 @@ Add your personal instructions below.
 
 @rules/kit/CLAUDE-kit.md
 CLAUDE_MINIMAL_EOF
-	manifest "CREATED_MINIMAL" "~/.claude/CLAUDE.md"
-	log "Created minimal CLAUDE.md (with kit reference)"
-fi
+		manifest "CREATED_MINIMAL" "~/.claude/CLAUDE.md"
+		log "Created minimal CLAUDE.md (with kit reference)"
+	fi
 
 fi # end dry-run check for section 3
 
@@ -630,10 +682,10 @@ if $DRY_RUN; then
 	done
 else
 
-for agent in $AGENT_NAMES; do
-	install_template "agents/$agent.md"
-	log "Created agent: $agent"
-done
+	for agent in $AGENT_NAMES; do
+		install_template "agents/$agent.md"
+		log "Created agent: $agent"
+	done
 
 fi # end dry-run check for section 4
 
@@ -649,26 +701,26 @@ if $DRY_RUN; then
 	done
 else
 
-for skill in $SKILL_NAMES; do
-	skill_src="$TEMPLATES_DIR/skills/$skill"
-	skill_dst="$SKILLS_DIR/$skill"
+	for skill in $SKILL_NAMES; do
+		skill_src="$TEMPLATES_DIR/skills/$skill"
+		skill_dst="$SKILLS_DIR/$skill"
 
-	# Remove existing skill directory to ensure clean state
-	if [ -d "$skill_dst" ]; then
-		rm -rf "$skill_dst"
-	fi
+		# Remove existing skill directory to ensure clean state
+		if [ -d "$skill_dst" ]; then
+			rm -rf "$skill_dst"
+		fi
 
-	# Copy entire skill directory (SKILL.md + references, scripts, templates, etc.)
-	cp -R "$skill_src" "$skill_dst"
+		# Copy entire skill directory (SKILL.md + references, scripts, templates, etc.)
+		cp -R "$skill_src" "$skill_dst"
 
-	# Manifest all files in the skill directory
-	find "$skill_dst" -type f | while read -r f; do
-		rel="${f#$CLAUDE_DIR/}"
-		manifest "CREATED" "~/.claude/$rel"
+		# Manifest all files in the skill directory
+		find "$skill_dst" -type f | while read -r f; do
+			rel="${f#$CLAUDE_DIR/}"
+			manifest "CREATED" "~/.claude/$rel"
+		done
+
+		log "Created skill: /$skill"
 	done
-
-	log "Created skill: /$skill"
-done
 
 fi # end dry-run check for section 5
 
@@ -833,7 +885,7 @@ echo -e "    ${GREEN}/team-stop {team-name}${NC}             ${DIM}← cleanup${
 echo ""
 echo -e "  ${DIM}Installed:${NC}"
 echo -e "    ${DIM}~/.claude/settings.json (merged with existing)${NC}"
-echo -e "    ${DIM}~/.claude/rules/kit/CLAUDE-kit.md (auto-loaded)${NC}"
+echo -e "    ${DIM}~/.claude/rules/*/  ($RULE_DIR_COUNT rule directories, auto-loaded)${NC}"
 echo -e "    ${DIM}~/.claude/agents/*.md  ($AGENT_COUNT agents)${NC}"
 echo -e "    ${DIM}~/.claude/skills/*/SKILL.md  ($SKILL_COUNT skills)${NC}"
 echo -e "    ${DIM}~/.claude/powerline.json${NC}"
