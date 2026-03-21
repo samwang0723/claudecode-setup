@@ -1,3 +1,11 @@
+---
+name: write-prd
+description: >
+  Write a Product Requirements Document (PRD) using the standard TMAB template with stakeholders,
+  user stories (Given-When-Then), success metrics, and A/B testing plans. Use when the user asks
+  to write a PRD, create product requirements, document a feature spec, or plan a new product feature.
+---
+
 # write-prd
 
 Write a Product Requirements Document (PRD) using the standard template.
