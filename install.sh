@@ -340,7 +340,7 @@ KIT_DEFAULTS=$(cat <<'DEFAULTS_EOF'
   "effortLevel": "high",
   "alwaysThinkingEnabled": true,
   "showTurnDuration": true,
-  "cleanupPeriodDays": 365,
+  "cleanupPeriodDays": 90,
   "includeCoAuthoredBy": false,
   "includeGitInstructions": true,
   "permissions": {
