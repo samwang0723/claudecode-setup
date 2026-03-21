@@ -11,10 +11,11 @@ Shell-based installer that configures Claude Code with a Master Engineering work
 - `install.sh` — Main installer (~765 lines). Copies templates, merges settings (with jq), and handles backup/revert. Supports `--revert`, `--dry-run`, and `--yes` flags.
 - `templates/` — 1:1 mirror of `~/.claude/` structure. Edit these directly, then re-run `./install.sh` to copy.
   - `templates/agents/*.md` — 7 agent definitions
-  - `templates/skills/*/SKILL.md` — 15 skill definitions (matches Claude Code's `skills/<name>/SKILL.md` layout)
+  - `templates/skills/*/SKILL.md` — 17 skill definitions (matches Claude Code's `skills/<name>/SKILL.md` layout)
+  - `templates/powerline.json` — claude-powerline status line config
   - `templates/rules/kit/CLAUDE-kit.md` — Kit documentation (auto-loaded by Claude Code rules)
   - `templates/sample-claude.md` — Reference template for `~/.claude/CLAUDE.md` (not auto-installed)
-- `statusline.sh` — Claude Code status line hook. Reads JSON from stdin via `jq`, outputs a formatted terminal line with color-coded context bar (green <70%, yellow 70-89%, red 90%+).
+- `statusline.sh` — Legacy status line hook (replaced by `claude-powerline` in v6).
 - `README.md` — User-facing docs with architecture diagram, skill reference, and pipeline overview.
 
 ## Running
@@ -26,7 +27,7 @@ chmod +x install.sh && ./install.sh     # install/update
 ./install.sh --yes                       # auto-approve prompts
 ```
 
-No build system, no tests, no dependencies beyond `jq` (auto-installed by the script), RTK (auto-installed), and the Claude Code CLI.
+No build system, no tests, no dependencies beyond `jq` (auto-installed by the script), `@owloops/claude-powerline` (auto-installed), RTK (auto-installed), and the Claude Code CLI.
 
 ## Navigating install.sh
 
@@ -35,13 +36,13 @@ The installer is organized into numbered sections delimited by comment bars (`# 
 | Section | What it does |
 |---------|--------------|
 | Top (after helpers) | `SCRIPT_DIR`, `TEMPLATES_DIR`, `manifest()`, `install_template()`, `revert_kit()`, flag parsing |
-| 0. Pre-flight | Checks for `claude` CLI, `jq`, and `templates/` directory |
+| 0. Pre-flight | Checks for `claude` CLI, `jq`, `claude-powerline`, and `templates/` directory |
 | 1. Directories + manifest init | Creates `agents/`, `rules/kit/`, `skills/*/`; initializes manifest |
 | 2. settings.json | jq deep-merge with existing (kit defaults as base, user values win); backup to `.kit-backup/` |
-| 2b. statusline.sh | Copies with backup of existing |
+| 2b. powerline.json | Copies claude-powerline config with backup of existing |
 | 3. Kit rules | Copies `templates/rules/CLAUDE-kit.md`; strips legacy CLAUDE.md markers if present |
 | 4. Agents | Copies 7 agent `.md` files from `templates/agents/` |
-| 5. Skills | Copies 15 skill `.md` files from `templates/skills/` |
+| 5. Skills | Copies 17 skill `.md` files from `templates/skills/` |
 | 6. Cleanup | Warns about deprecated `~/.claude/commands/` |
 | 7. RTK | Installs RTK (Rust Token Killer) token-optimized CLI proxy; runs `rtk init -g` |
 | 8. Summary | Final output with revert instructions |
@@ -61,10 +62,10 @@ The installer is organized into numbered sections delimited by comment bars (`# 
 | Target | Count | Purpose |
 |--------|-------|---------|
 | `~/.claude/agents/*.md` | 7 | team-lead, architect, dev, qa, security-reviewer, pm, explorer |
-| `~/.claude/skills/*/SKILL.md` | 15 | 9 pipeline + 3 team + 3 document skills |
+| `~/.claude/skills/*/SKILL.md` | 17 | 9 pipeline + 3 team + 5 document/utility skills |
 | `~/.claude/rules/kit/CLAUDE-kit.md` | 1 | Kit documentation (auto-loaded by Claude Code rules) |
 | `~/.claude/settings.json` | merge | Permissions, model, env vars, plugins (merged with existing) |
-| `~/.claude/statusline.sh` | 1 | Status line display hook |
+| `~/.claude/powerline.json` | 1 | claude-powerline status line config |
 | `~/.claude/.kit-manifest` | 1 | Tracks all created/modified files for revert |
 | `~/.claude/.kit-backup/` | dir | Pre-install backups of modified files |
 
@@ -82,7 +83,7 @@ The installer is organized into numbered sections delimited by comment bars (`# 
 - Color constants (`BLUE`, `GREEN`, etc.) with `NC` reset
 - Logging helpers: `log()`, `warn()`, `err()`, `info()` with status icons
 - `manifest()` helper appends entries to `.kit-manifest`
-- `statusline.sh` expects piped JSON input with fields: `model`, `cost`, `context_window`, `workspace`
+- Status line uses `claude-powerline` with config at `~/.claude/powerline.json`
 
 ## Editing Content
 

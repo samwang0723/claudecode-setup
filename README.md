@@ -9,7 +9,7 @@ Skills + Agents architecture. Git worktree isolation. Stateful tasks.
 | v5                                       | v6                                                        |
 | ---------------------------------------- | --------------------------------------------------------- |
 | claude-squad optional install            | RTK (Rust Token Killer) auto-install for 60-90% token savings |
-| 12 skills (9 pipeline + 3 team)          | 15 skills (+`/api-design`, `/write-prd`, `/write-tech-spec`) |
+| 12 skills (9 pipeline + 3 team)          | 17 skills (+`/api-design`, `/write-prd`, `/write-tech-spec`, `/learn`, `/market-research`) |
 | `--revert` only                          | `--revert`, `--dry-run`, `--yes` flags                    |
 
 ### v4 → v5
@@ -32,7 +32,7 @@ Your old `~/.claude/commands/` still work but are deprecated. Skills are the off
 chmod +x install.sh && ./install.sh
 ```
 
-Requires `jq` (auto-installed by the script if missing) and the Claude Code CLI. RTK is auto-installed during setup.
+Requires `jq` (auto-installed by the script if missing), Node.js/npm, and the Claude Code CLI. RTK and `@owloops/claude-powerline` are auto-installed during setup.
 
 ### Flags
 
@@ -86,6 +86,8 @@ flowchart TB
         AD["/api-design"]
         WP["/write-prd"]
         WTS["/write-tech-spec"]
+        LN["/learn"]
+        MR["/market-research"]
     end
 
     subgraph "Agents (~/.claude/agents/)"
@@ -101,8 +103,8 @@ flowchart TB
         EXP["🔭 explorer"]
     end
 
-    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS
-    LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS -->|"context:fork\nagent:team-lead"| TL
+    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR
+    LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR -->|"context:fork\nagent:team-lead"| TL
     TL --> ARCH & D1 & D2 & D3 & PM & QA & SEC & AG & EXP
 
     style Master fill:#f9a825,stroke:#f57f17,color:#000
@@ -121,7 +123,7 @@ flowchart TB
 ```
 ~/.claude/
 ├── settings.json                     ← merged with kit defaults (user values win)
-├── statusline.sh                     ← status bar hook
+├── powerline.json                    ← claude-powerline config
 ├── CLAUDE.md                         ← global context (kit adds @reference only)
 ├── rules/
 │   └── kit/
@@ -149,7 +151,9 @@ flowchart TB
 │   ├── team-stop/SKILL.md            ← cleanup team
 │   ├── api-design/SKILL.md           ← REST API design patterns
 │   ├── write-prd/SKILL.md            ← product requirements document
-│   └── write-tech-spec/SKILL.md      ← technical specification
+│   ├── write-tech-spec/SKILL.md      ← technical specification
+│   ├── learn/SKILL.md                ← extract reusable patterns
+│   └── market-research/SKILL.md      ← competitive analysis & research
 ├── .kit-manifest                     ← tracks all created/modified files
 └── .kit-backup/                      ← pre-install backups
 ```
@@ -179,7 +183,7 @@ Every install creates a manifest (`~/.claude/.kit-manifest`) tracking all files 
 ```
 
 Revert reads the manifest to:
-- Delete all kit-created files (`agents/`, `skills/`, `rules/kit/`, `statusline.sh`)
+- Delete all kit-created files (`agents/`, `skills/`, `rules/kit/`, `powerline.json`)
 - Restore backed-up files (`settings.json`, `CLAUDE.md`) from `.kit-backup/`
 - Strip legacy CLAUDE.md markers if found from previous installs
 - Clean up empty directories, manifest, and backup dir
@@ -228,6 +232,8 @@ agent: team-lead # delegate to team-lead agent
 | `/api-design`                   | API design     | REST patterns: naming, status codes, pagination, versioning |
 | `/write-prd`                    | PRD creation   | Product requirements document with template        |
 | `/write-tech-spec`              | Tech spec      | Technical specification document with template     |
+| `/learn`                        | Pattern extraction | Extract reusable patterns from current session  |
+| `/market-research`              | Research       | Market sizing, competitive analysis, investor diligence |
 
 ### Agent Team Skills
 
