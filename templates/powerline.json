@@ -1,6 +1,7 @@
 {
   "display": {
     "autoWrap": true,
+    "padding": 1,
     "lines": [
       {
         "segments": {
@@ -22,13 +23,18 @@
       {
         "segments": {
           "session": {
-            "enabled": true
+            "enabled": true,
+            "type": "both",
+            "costSource": "calculated"
           },
           "today": {
-            "enabled": true
+            "enabled": true,
+            "type": "both"
           },
           "context": {
-            "enabled": true
+            "enabled": true,
+            "displayStyle": "dots",
+            "percentageMode": "used"
           }
         }
       },
@@ -42,6 +48,11 @@
             "showMessageCount": true,
             "showLinesAdded": true,
             "showLinesRemoved": true
+          },
+          "env": {
+            "enabled": true,
+            "variable": "CLAUDE_ACCOUNT",
+            "prefix": "Acct"
           }
         }
       }
