@@ -285,10 +285,7 @@ if $DRY_RUN; then
 		info "Would create ~/.claude/skills/$skill/"
 	done
 else
-	mkdir -p "$AGENTS_DIR" "$RULES_KIT_DIR" "$BACKUP_DIR"
-	for skill in $SKILL_NAMES; do
-		mkdir -p "$SKILLS_DIR/$skill"
-	done
+	mkdir -p "$AGENTS_DIR" "$RULES_KIT_DIR" "$BACKUP_DIR" "$SKILLS_DIR"
 
 	# Version tracking — detect upgrade vs re-install
 	if [ -f "$MANIFEST_FILE" ]; then
@@ -647,12 +644,29 @@ step "Installing skills ($SKILL_COUNT)..."
 
 if $DRY_RUN; then
 	for skill in $SKILL_NAMES; do
-		info "Would create ~/.claude/skills/$skill/SKILL.md"
+		local_count=$(find "$TEMPLATES_DIR/skills/$skill" -type f | wc -l | tr -d ' ')
+		info "Would install ~/.claude/skills/$skill/ ($local_count files)"
 	done
 else
 
 for skill in $SKILL_NAMES; do
-	install_template "skills/$skill/SKILL.md"
+	skill_src="$TEMPLATES_DIR/skills/$skill"
+	skill_dst="$SKILLS_DIR/$skill"
+
+	# Remove existing skill directory to ensure clean state
+	if [ -d "$skill_dst" ]; then
+		rm -rf "$skill_dst"
+	fi
+
+	# Copy entire skill directory (SKILL.md + references, scripts, templates, etc.)
+	cp -R "$skill_src" "$skill_dst"
+
+	# Manifest all files in the skill directory
+	find "$skill_dst" -type f | while read -r f; do
+		rel="${f#$CLAUDE_DIR/}"
+		manifest "CREATED" "~/.claude/$rel"
+	done
+
 	log "Created skill: /$skill"
 done
 
