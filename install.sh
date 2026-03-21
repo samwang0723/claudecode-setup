@@ -28,7 +28,7 @@ box_top()  { local bar; bar=$(printf '%0.s=' $(seq 1 $BOX_W)); echo -e "${BOLD}+
 box_bot()  { local bar; bar=$(printf '%0.s=' $(seq 1 $BOX_W)); echo -e "${BOLD}+${bar}+${NC}"; }
 box_line() { printf -v _pad "%-${BOX_W}s" "$1"; echo -e "${BOLD}|${_pad}|${NC}"; }
 
-TOTAL_STEPS=8
+TOTAL_STEPS=9
 CURRENT_STEP=0
 step() {
 	((CURRENT_STEP++))
@@ -693,7 +693,61 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 8. Summary
+# 8. Agent Browser (optional) — browser automation for AI agents
+# ---------------------------------------------------------------------------
+step "Agent Browser (optional)..."
+AGENT_BROWSER_SKILL_URL="https://raw.githubusercontent.com/vercel-labs/agent-browser/main/skills/agent-browser/SKILL.md"
+
+if $DRY_RUN; then
+	info "Would ask to install agent-browser (optional)"
+else
+	INSTALL_AB=false
+	if $YES_FLAG; then
+		INSTALL_AB=true
+	else
+		echo ""
+		echo -e "${CYAN}agent-browser${NC} provides browser automation for AI agents (navigate, click, fill forms, screenshots)."
+		echo -n -e "  Install agent-browser? [y/N] "
+		read -r AB_ANSWER
+		case "$AB_ANSWER" in
+		[yY] | [yY][eE][sS]) INSTALL_AB=true ;;
+		*) INSTALL_AB=false ;;
+		esac
+	fi
+
+	if $INSTALL_AB; then
+		if ! command -v agent-browser &>/dev/null; then
+			info "Installing agent-browser..."
+			npm install -g agent-browser && log "agent-browser installed" || {
+				err "agent-browser npm install failed — install manually: npm install -g agent-browser"
+				INSTALL_AB=false
+			}
+		else
+			log "agent-browser already installed"
+		fi
+
+		if $INSTALL_AB; then
+			info "Running agent-browser install (downloads Chrome)..."
+			agent-browser install 2>/dev/null && log "agent-browser Chrome installed" || warn "agent-browser install had issues — run 'agent-browser install' manually"
+
+			# Download and install the skill
+			mkdir -p "$SKILLS_DIR/agent-browser"
+			if curl -fsSL "$AGENT_BROWSER_SKILL_URL" -o "$SKILLS_DIR/agent-browser/SKILL.md" 2>/dev/null; then
+				manifest "CREATED" "~/.claude/skills/agent-browser/SKILL.md"
+				manifest "CREATED_DIR" "~/.claude/skills/agent-browser"
+				log "Downloaded agent-browser skill → ~/.claude/skills/agent-browser/SKILL.md"
+			else
+				warn "Failed to download agent-browser skill — download manually from:"
+				info "$AGENT_BROWSER_SKILL_URL"
+			fi
+		fi
+	else
+		info "Skipping agent-browser"
+	fi
+fi
+
+# ---------------------------------------------------------------------------
+# 9. Summary
 # ---------------------------------------------------------------------------
 if $DRY_RUN; then
 	echo ""
