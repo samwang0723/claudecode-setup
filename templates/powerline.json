@@ -1,0 +1,50 @@
+{
+  "display": {
+    "autoWrap": true,
+    "lines": [
+      {
+        "segments": {
+          "directory": {
+            "enabled": true,
+            "style": "basename"
+          },
+          "git": {
+            "enabled": true
+          },
+          "tmux": {
+            "enabled": true
+          },
+          "model": {
+            "enabled": true
+          }
+        }
+      },
+      {
+        "segments": {
+          "session": {
+            "enabled": true
+          },
+          "today": {
+            "enabled": true
+          },
+          "context": {
+            "enabled": true
+          }
+        }
+      },
+      {
+        "segments": {
+          "metrics": {
+            "enabled": true,
+            "showResponseTime": true,
+            "showLastResponseTime": false,
+            "showDuration": true,
+            "showMessageCount": true,
+            "showLinesAdded": true,
+            "showLinesRemoved": true
+          }
+        }
+      }
+    ]
+  }
+}

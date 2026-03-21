@@ -245,6 +245,14 @@ if ! command -v jq &>/dev/null; then
 fi
 log "jq available"
 
+if ! command -v claude-powerline &>/dev/null; then
+	info "Installing claude-powerline..."
+	npm install -g @owloops/claude-powerline
+	log "claude-powerline installed"
+else
+	log "claude-powerline available"
+fi
+
 # ---------------------------------------------------------------------------
 # 1. Directories + manifest init
 # ---------------------------------------------------------------------------
@@ -418,7 +426,7 @@ KIT_DEFAULTS=$(cat <<'DEFAULTS_EOF'
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.sh"
+    "command": "claude-powerline --style=powerline --theme=tokyo-night --config=~/.claude/powerline.json"
   },
   "teammateMode": "tmux"
 }
@@ -532,24 +540,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2b. statusline.sh → ~/.claude/statusline.sh
+# 2b. powerline.json → ~/.claude/powerline.json
 # ---------------------------------------------------------------------------
 if $DRY_RUN; then
-	if [ -f "$SCRIPT_DIR/statusline.sh" ]; then
-		info "Would copy statusline.sh → ~/.claude/statusline.sh"
+	if [ -f "$TEMPLATES_DIR/powerline.json" ]; then
+		info "Would copy powerline.json → ~/.claude/powerline.json"
 	fi
 else
-	if [ -f "$SCRIPT_DIR/statusline.sh" ]; then
-		if [ -f "$CLAUDE_DIR/statusline.sh" ]; then
-			cp "$CLAUDE_DIR/statusline.sh" "$BACKUP_DIR/statusline.sh"
-			manifest "BACKED_UP" "~/.claude/statusline.sh"
+	if [ -f "$TEMPLATES_DIR/powerline.json" ]; then
+		if [ -f "$CLAUDE_DIR/powerline.json" ]; then
+			cp "$CLAUDE_DIR/powerline.json" "$BACKUP_DIR/powerline.json"
+			manifest "BACKED_UP" "~/.claude/powerline.json"
 		fi
-		cp "$SCRIPT_DIR/statusline.sh" "$CLAUDE_DIR/statusline.sh"
-		chmod +x "$CLAUDE_DIR/statusline.sh"
-		manifest "CREATED" "~/.claude/statusline.sh"
-		log "Copied statusline.sh → ~/.claude/statusline.sh"
+		cp "$TEMPLATES_DIR/powerline.json" "$CLAUDE_DIR/powerline.json"
+		manifest "CREATED" "~/.claude/powerline.json"
+		log "Copied powerline.json → ~/.claude/powerline.json"
 	else
-		warn "statusline.sh not found in $SCRIPT_DIR — skipping"
+		warn "powerline.json not found in $TEMPLATES_DIR — skipping"
 	fi
 fi
 
@@ -756,7 +763,7 @@ echo -e "    ${DIM}~/.claude/settings.json (merged with existing)${NC}"
 echo -e "    ${DIM}~/.claude/rules/kit/CLAUDE-kit.md (auto-loaded)${NC}"
 echo -e "    ${DIM}~/.claude/agents/*.md  ($AGENT_COUNT agents)${NC}"
 echo -e "    ${DIM}~/.claude/skills/*/SKILL.md  ($SKILL_COUNT skills)${NC}"
-echo -e "    ${DIM}~/.claude/statusline.sh${NC}"
+echo -e "    ${DIM}~/.claude/powerline.json${NC}"
 echo ""
 echo -e "  ${BOLD}Revert:${NC}"
 echo -e "    ${YELLOW}./install.sh --revert${NC}  ${DIM}← removes kit files, restores backups${NC}"
