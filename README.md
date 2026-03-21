@@ -9,7 +9,7 @@ Skills + Agents architecture. Git worktree isolation. Stateful tasks.
 | v5                                       | v6                                                        |
 | ---------------------------------------- | --------------------------------------------------------- |
 | claude-squad optional install            | RTK (Rust Token Killer) auto-install for 60-90% token savings |
-| 12 skills (9 pipeline + 3 team)          | 18 skills (+`/api-design`, `/write-prd`, `/write-tech-spec`, `/learn`, `/market-research`, `/doc-update`) |
+| 12 skills (9 pipeline + 3 team)          | 25 skills (+document, effective-*, security, compact, knowledge skills) |
 | `--revert` only                          | `--revert`, `--dry-run`, `--yes` flags                    |
 
 ### v4 → v5
@@ -73,30 +73,49 @@ cd everything-claude-code
 flowchart TB
     Master["👤 Master"]
 
-    subgraph "Skills (~/.claude/skills/)"
-        LS["/lead-start"]
-        LSM["/lead-summary"]
-        LC["/lead-cleanup"]
-        RP["/review-pr"]
-        AR["/arch-review"]
-        INV["/investigate"]
-        STR["/strategy"]
-        SC["/scope"]
-        QS["/quick-scan"]
-        AD["/api-design"]
-        WP["/write-prd"]
-        WTS["/write-tech-spec"]
-        LN["/learn"]
-        MR["/market-research"]
-        DU["/doc-update"]
+    subgraph "Skills (~/.claude/skills/) — 25 total"
+        subgraph "Pipeline"
+            LS["/lead-start"]
+            LSM["/lead-summary"]
+            LC["/lead-cleanup"]
+            RP["/review-pr"]
+            AR["/arch-review"]
+            INV["/investigate"]
+            STR["/strategy"]
+            SC["/scope"]
+            QS["/quick-scan"]
+        end
+        subgraph "Team"
+            TS["/team-start"]
+            TST["/team-status"]
+            TSP["/team-stop"]
+        end
+        subgraph "Document & Utility"
+            AD["/api-design"]
+            WP["/write-prd"]
+            WTS["/write-tech-spec"]
+            LN["/learn"]
+            MR["/market-research"]
+            DU["/doc-update"]
+            KN["/knowledge"]
+            SEC_S["/secure-claude"]
+            STC["/strategic-compact"]
+        end
+        subgraph "Effective-* (Language)"
+            EGO["/effective-go"]
+            ERL["/effective-rails"]
+            ERS["/effective-rust"]
+            ETS["/effective-typescript"]
+        end
     end
 
-    subgraph "Agents (~/.claude/agents/)"
+    subgraph "Agents (~/.claude/agents/) — 8 total"
         TL["🎖 team-lead"]
         ARCH["🏗 architect"]
         D1["💻 dev-1\n.worktrees/*/dev-1/"]
         D2["💻 dev-2"]
         D3["💻 dev-3"]
+        CR["🔍 code-reviewer"]
         PM["📋 pm"]
         QA["✅ qa\n.worktrees/*/integrate/"]
         SEC["🛡 security\n.worktrees/*/integrate/"]
@@ -104,9 +123,9 @@ flowchart TB
         EXP["🔭 explorer"]
     end
 
-    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR & DU
+    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR & DU & TS & TST & TSP & KN & SEC_S & STC & EGO & ERL & ERS & ETS
     LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR & DU -->|"context:fork\nagent:team-lead"| TL
-    TL --> ARCH & D1 & D2 & D3 & PM & QA & SEC & AG & EXP
+    TL --> ARCH & D1 & D2 & D3 & CR & PM & QA & SEC & AG & EXP
 
     style Master fill:#f9a825,stroke:#f57f17,color:#000
     style TL fill:#43a047,stroke:#2e7d32,color:#fff
@@ -127,35 +146,46 @@ flowchart TB
 ├── powerline.json                    ← claude-powerline config
 ├── CLAUDE.md                         ← global context (kit adds @reference only)
 ├── rules/
-│   └── kit/
-│       └── CLAUDE-kit.md             ← kit docs (auto-loaded by Claude Code)
+│   ├── kit/CLAUDE-kit.md             ← kit docs (auto-loaded by Claude Code)
+│   ├── common/*.md                   ← shared rules (agents, coding-style, security, etc.)
+│   ├── golang/*.md                   ← Go-specific rules
+│   ├── python/*.md                   ← Python-specific rules
+│   └── typescript/*.md               ← TypeScript-specific rules
 ├── agents/
 │   ├── team-lead.md                  ← orchestrator
 │   ├── architect.md                  ← design + gate
 │   ├── dev.md                        ← TDD worker (×1-5)
+│   ├── code-reviewer.md              ← multi-language code review
 │   ├── qa.md                         ← e2e tester
 │   ├── security-reviewer.md          ← security gate
 │   ├── pm.md                         ← requirements
 │   └── explorer.md                   ← scout
-├── skills/
-│   ├── lead-start/SKILL.md           ← start or resume task
-│   ├── lead-summary/SKILL.md         ← progress overview
-│   ├── lead-cleanup/SKILL.md         ← remove worktrees
-│   ├── review-pr/SKILL.md            ← PR review
-│   ├── arch-review/SKILL.md          ← architecture audit
-│   ├── investigate/SKILL.md          ← incident investigation
-│   ├── strategy/SKILL.md             ← strategic decisions
-│   ├── scope/SKILL.md                ← project scoping
-│   ├── quick-scan/SKILL.md           ← health check
-│   ├── team-start/SKILL.md           ← spawn agent team (tmux)
-│   ├── team-status/SKILL.md          ← check team progress
-│   ├── team-stop/SKILL.md            ← cleanup team
-│   ├── api-design/SKILL.md           ← REST API design patterns
-│   ├── write-prd/SKILL.md            ← product requirements document
-│   ├── write-tech-spec/SKILL.md      ← technical specification
-│   ├── learn/SKILL.md                ← extract reusable patterns
-│   ├── market-research/SKILL.md      ← competitive analysis & research
-│   └── doc-update/SKILL.md           ← review & update project docs
+├── skills/                           ← 25 skill directories (with references/)
+│   ├── lead-start/                   ← start or resume task
+│   ├── lead-summary/                 ← progress overview
+│   ├── lead-cleanup/                 ← remove worktrees
+│   ├── review-pr/                    ← PR review
+│   ├── arch-review/                  ← architecture audit
+│   ├── investigate/                  ← incident investigation
+│   ├── strategy/                     ← strategic decisions
+│   ├── scope/                        ← project scoping
+│   ├── quick-scan/                   ← health check
+│   ├── team-start/                   ← spawn agent team (tmux)
+│   ├── team-status/                  ← check team progress
+│   ├── team-stop/                    ← cleanup team
+│   ├── api-design/                   ← REST API design patterns
+│   ├── write-prd/                    ← product requirements document
+│   ├── write-tech-spec/              ← technical specification
+│   ├── learn/                        ← extract reusable patterns
+│   ├── market-research/              ← competitive analysis & research
+│   ├── doc-update/                   ← review & update project docs
+│   ├── effective-go/                 ← Go patterns + references
+│   ├── effective-rails/              ← Rails patterns + references
+│   ├── effective-rust/               ← Rust patterns + references
+│   ├── effective-typescript/         ← TypeScript patterns + references
+│   ├── secure-claude/                ← security audit for claude config
+│   ├── strategic-compact/            ← context compaction suggestions
+│   └── knowledge/                    ← Obsidian knowledge vault search
 ├── .kit-manifest                     ← tracks all created/modified files
 └── .kit-backup/                      ← pre-install backups
 ```
@@ -185,7 +215,7 @@ Every install creates a manifest (`~/.claude/.kit-manifest`) tracking all files 
 ```
 
 Revert reads the manifest to:
-- Delete all kit-created files (`agents/`, `skills/`, `rules/kit/`, `powerline.json`)
+- Delete all kit-created files (`agents/`, `skills/`, `rules/*/`, `powerline.json`)
 - Restore backed-up files (`settings.json`, `CLAUDE.md`) from `.kit-backup/`
 - Strip legacy CLAUDE.md markers if found from previous installs
 - Clean up empty directories, manifest, and backup dir
@@ -227,7 +257,7 @@ agent: team-lead # delegate to team-lead agent
 | `/scope <project>`              | Planning     | MoSCoW → design → security → go/no-go              |
 | `/quick-scan [focus]`           | Health check | Structure → tests → quality                        |
 
-### Document Skills
+### Document & Utility Skills
 
 | Skill                           | Trigger        | What it does                                       |
 | ------------------------------- | -------------- | -------------------------------------------------- |
@@ -237,6 +267,18 @@ agent: team-lead # delegate to team-lead agent
 | `/learn`                        | Pattern extraction | Extract reusable patterns from current session  |
 | `/market-research`              | Research       | Market sizing, competitive analysis, investor diligence |
 | `/doc-update`                   | Doc sync       | Review & update README.md, CLAUDE.md, docs/ to match codebase |
+| `/knowledge`                    | Knowledge vault | Search and update Obsidian knowledge vault        |
+| `/secure-claude`                | Security audit | Scan all config for malware, exfiltration, prompt injection |
+| `/strategic-compact`            | Context mgmt   | Suggest manual compaction at logical task boundaries |
+
+### Language Skills (Effective-*)
+
+| Skill                           | Trigger        | What it does                                       |
+| ------------------------------- | -------------- | -------------------------------------------------- |
+| `/effective-go`                 | Go code        | Idiomatic Go patterns, error handling, concurrency, testing |
+| `/effective-rails`              | Rails code     | Rails best practices, ActiveRecord, testing, security |
+| `/effective-rust`               | Rust code      | Ownership, zero-cost abstractions, idiomatic patterns |
+| `/effective-typescript`         | TypeScript code | Strict typing, async, React/Next.js, ESLint, testing |
 
 ### Agent Team Skills
 
