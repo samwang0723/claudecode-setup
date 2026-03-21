@@ -9,7 +9,7 @@ Skills + Agents architecture. Git worktree isolation. Stateful tasks.
 | v5                                       | v6                                                        |
 | ---------------------------------------- | --------------------------------------------------------- |
 | claude-squad optional install            | RTK (Rust Token Killer) auto-install for 60-90% token savings |
-| 12 skills (9 pipeline + 3 team)          | 17 skills (+`/api-design`, `/write-prd`, `/write-tech-spec`, `/learn`, `/market-research`) |
+| 12 skills (9 pipeline + 3 team)          | 18 skills (+`/api-design`, `/write-prd`, `/write-tech-spec`, `/learn`, `/market-research`, `/doc-update`) |
 | `--revert` only                          | `--revert`, `--dry-run`, `--yes` flags                    |
 
 ### v4 → v5
@@ -88,6 +88,7 @@ flowchart TB
         WTS["/write-tech-spec"]
         LN["/learn"]
         MR["/market-research"]
+        DU["/doc-update"]
     end
 
     subgraph "Agents (~/.claude/agents/)"
@@ -103,8 +104,8 @@ flowchart TB
         EXP["🔭 explorer"]
     end
 
-    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR
-    LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR -->|"context:fork\nagent:team-lead"| TL
+    Master -->|"invoke"| LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR & DU
+    LS & LSM & LC & RP & AR & INV & STR & SC & QS & AD & WP & WTS & LN & MR & DU -->|"context:fork\nagent:team-lead"| TL
     TL --> ARCH & D1 & D2 & D3 & PM & QA & SEC & AG & EXP
 
     style Master fill:#f9a825,stroke:#f57f17,color:#000
@@ -153,7 +154,8 @@ flowchart TB
 │   ├── write-prd/SKILL.md            ← product requirements document
 │   ├── write-tech-spec/SKILL.md      ← technical specification
 │   ├── learn/SKILL.md                ← extract reusable patterns
-│   └── market-research/SKILL.md      ← competitive analysis & research
+│   ├── market-research/SKILL.md      ← competitive analysis & research
+│   └── doc-update/SKILL.md           ← review & update project docs
 ├── .kit-manifest                     ← tracks all created/modified files
 └── .kit-backup/                      ← pre-install backups
 ```
@@ -234,6 +236,7 @@ agent: team-lead # delegate to team-lead agent
 | `/write-tech-spec`              | Tech spec      | Technical specification document with template     |
 | `/learn`                        | Pattern extraction | Extract reusable patterns from current session  |
 | `/market-research`              | Research       | Market sizing, competitive analysis, investor diligence |
+| `/doc-update`                   | Doc sync       | Review & update README.md, CLAUDE.md, docs/ to match codebase |
 
 ### Agent Team Skills
 
