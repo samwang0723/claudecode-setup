@@ -140,7 +140,7 @@ revert_kit() {
 		case "$action" in
 		CREATED)
 			if [ -f "$filepath" ]; then
-				rm -f "$filepath"
+				trash "$filepath" 2>/dev/null || true
 				log "Deleted: $filepath"
 			else
 				info "Already gone: $filepath"
@@ -174,7 +174,7 @@ revert_kit() {
 			if [ -d "$dir_backup" ]; then
 				# Remove current contents and restore from backup
 				if [ -d "$filepath" ]; then
-					rm -rf "$filepath"
+					trash "$filepath" 2>/dev/null || true
 				fi
 				mkdir -p "$filepath"
 				cp -R "$dir_backup"/* "$filepath"/ 2>/dev/null || true
@@ -223,9 +223,9 @@ revert_kit() {
 	[ -d "$CLAUDE_DIR/rules" ] && [ -z "$(ls -A "$CLAUDE_DIR/rules" 2>/dev/null)" ] && rmdir "$CLAUDE_DIR/rules" 2>/dev/null || true
 
 	# Remove manifest and backup dir
-	rm -f "$MANIFEST_FILE"
+	trash "$MANIFEST_FILE" 2>/dev/null || true
 	if [ -d "$BACKUP_DIR" ]; then
-		rm -rf "$BACKUP_DIR"
+		trash "$BACKUP_DIR" 2>/dev/null || true
 		log "Removed backup directory"
 	fi
 
@@ -356,7 +356,7 @@ if $DRY_RUN; then
 else
 	# Clear previous backup directory (fresh backups created each install)
 	if [ -d "$BACKUP_DIR" ]; then
-		rm -rf "$BACKUP_DIR"
+		trash "$BACKUP_DIR" 2>/dev/null || true
 	fi
 	mkdir -p "$AGENTS_DIR" "$AGENTS_DIR/memory" "$BACKUP_DIR" "$SKILLS_DIR"
 	for rule_dir in $RULE_DIRS; do
@@ -790,7 +790,7 @@ step "Checking for deprecated files..."
 if [ -d "$CLAUDE_DIR/commands" ] && [ "$(ls -A "$CLAUDE_DIR/commands" 2>/dev/null)" ]; then
 	warn "Found old ~/.claude/commands/ (deprecated)"
 	info "Skills in ~/.claude/skills/ now replace commands."
-	info "Remove old commands manually: rm -rf ~/.claude/commands/"
+	info "Remove old commands manually: trash ~/.claude/commands/"
 else
 	log "No deprecated files found"
 fi
