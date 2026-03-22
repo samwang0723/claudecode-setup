@@ -80,8 +80,43 @@ Base Commit: {sha}
 
 ### Rules
 - Every agent reads `_status.md` before work, updates it after.
+- Every agent reads their memory log (`~/.claude/agents/memory/{agent}.md`) at task start, writes a reflection at task end.
 - Code in worktrees, task docs in main repo `.claude/tasks/`.
 - Master decides when to merge — never auto-merge.
+
+## Agent Memory System
+
+Persistent learning logs at `~/.claude/agents/memory/{agent}.md`. Each agent maintains a compressed diary of lessons learned across all tasks.
+
+### Lifecycle
+1. **Read** memory log at task start — filter by `Project:` tag, prioritize same-repo lessons
+2. **Append** dated reflection at task end via Bash (`cat >>`) — never overwrite (safe for parallel agents)
+3. **Diary merge** when file exceeds **150 lines** (`wc -l`) — intelligent compression, not simple truncation
+
+### Entry Format
+Each entry includes `Project: {repo-name}` for cross-repo filtering and `Critical: yes/no` to protect important lessons from compression. Agents prioritize lessons from the current repo but can learn from cross-project patterns too.
+
+### Diary Merge (Compression)
+When triggered (>150 lines), agents perform an intelligent merge rather than deleting old entries:
+1. Read entire file — existing `## Wisdom` section + all individual entries
+2. Identify themes across old and new entries, group lessons by topic
+3. Re-synthesize `## Wisdom` by merging old wisdom with new patterns. Strengthen repeated lessons, preserve `Critical: yes` lessons verbatim, drop routine lessons that never recurred
+4. Keep 10 most recent entries intact below Wisdom
+5. Delete individual entries that were absorbed into Wisdom
+
+The Wisdom section is a **living document** — each compression re-synthesizes it, so no important lesson is lost.
+
+### Memory Files
+| File | Agent | Notes |
+|------|-------|-------|
+| `memory/team-lead.md` | Delegation patterns, pipeline bottlenecks | |
+| `memory/architect.md` | Design trade-offs, gate review insights | |
+| `memory/dev.md` | TDD patterns, implementation pitfalls | **Shared** across parallel dev-1..5 instances |
+| `memory/code-reviewer.md` | Severity calibration, false positive patterns | |
+| `memory/qa.md` | Test strategies, integration failure patterns | |
+| `memory/security-reviewer.md` | Vulnerability patterns, compliance gaps | |
+| `memory/pm.md` | Scope estimation accuracy, risk predictions | |
+| `memory/explorer.md` | Search strategies, codebase landmarks | Reads memory only if <100 lines (speed priority) |
 
 ## Git Worktree Isolation
 

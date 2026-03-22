@@ -300,6 +300,7 @@ RULE_DIR_COUNT=$(echo "$RULE_DIRS" | wc -w | tr -d ' ')
 
 if $DRY_RUN; then
 	info "Would create ~/.claude/agents/"
+	info "Would create ~/.claude/agents/memory/"
 	for rule_dir in $RULE_DIRS; do
 		info "Would create ~/.claude/rules/$rule_dir/"
 	done
@@ -308,7 +309,7 @@ if $DRY_RUN; then
 		info "Would create ~/.claude/skills/$skill/"
 	done
 else
-	mkdir -p "$AGENTS_DIR" "$BACKUP_DIR" "$SKILLS_DIR"
+	mkdir -p "$AGENTS_DIR" "$AGENTS_DIR/memory" "$BACKUP_DIR" "$SKILLS_DIR"
 	for rule_dir in $RULE_DIRS; do
 		mkdir -p "$RULES_DIR/$rule_dir"
 	done
@@ -333,6 +334,7 @@ VERSION:${KIT_VERSION}
 MANIFEST_HEADER
 
 	manifest "CREATED_DIR" "~/.claude/agents"
+	manifest "CREATED_DIR" "~/.claude/agents/memory"
 	for rule_dir in $RULE_DIRS; do
 		manifest "CREATED_DIR" "~/.claude/rules/$rule_dir"
 	done

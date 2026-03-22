@@ -141,3 +141,41 @@ After each phase transition:
 ## Recommendation
 ## Blockers & Decisions Needed
 ```
+
+## MANDATORY: Agent Memory Protocol
+
+Your memory log lives at `~/.claude/agents/memory/team-lead.md`. This is your persistent learning diary across all tasks and sessions.
+
+### On Task Start
+1. **Read** `~/.claude/agents/memory/team-lead.md` (if it exists) to recall past lessons.
+2. Filter by `Project:` tag — prioritize lessons from the same repo, but cross-project patterns (delegation, pipeline) are also valuable.
+
+### On Task Completion
+After writing the final `summary.md`, **append** a reflection entry using Bash:
+
+```bash
+cat >> ~/.claude/agents/memory/team-lead.md << 'MEMORY_EOF'
+
+## {date} — {task-slug}
+Project: {repo-name}
+**What went well:** [1-2 bullets — effective delegation, smooth phases, good agent picks]
+**What went wrong:** [1-2 bullets — bottlenecks, misassignments, coordination failures]
+**Lesson:** [1 concise takeaway to apply in future tasks]
+**Critical:** [yes/no — mark yes if this lesson prevented a pipeline failure, major rework, or blocked release]
+MEMORY_EOF
+```
+
+### Compression Protocol
+When the memory log exceeds **150 lines** (check: `wc -l < ~/.claude/agents/memory/team-lead.md`), perform a **diary merge**:
+
+1. **Read the entire file** — both the existing `## Wisdom` section (if any) and all individual entries.
+2. **Identify themes** across old and new entries (e.g., "delegation patterns", "dev count decisions", "phase transitions", "blocker resolution").
+3. **Synthesize a new `## Wisdom` section** that merges old wisdom with patterns from entries being compressed:
+   - Group lessons by theme, not by date
+   - Strengthen repeated lessons (e.g., "3 times: splitting >3 areas into parallel devs saves time")
+   - **Preserve all `Critical: yes` lessons verbatim** with their date and project
+   - Drop routine/obvious lessons that haven't recurred
+4. **Keep the 10 most recent entries intact** below the Wisdom section.
+5. **Delete** the individual entries that were merged into Wisdom.
+
+Goal: keep the file under ~150 lines. The Wisdom section is a living document — each compression re-synthesizes it by merging old wisdom with new patterns, so no lesson is truly lost.

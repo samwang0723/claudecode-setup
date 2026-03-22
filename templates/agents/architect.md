@@ -268,3 +268,41 @@ Example architecture for an AI-powered SaaS platform:
 - **10M users**: Event-driven architecture, distributed caching, multi-region
 
 **Remember**: Good architecture enables rapid development, easy maintenance, and confident scaling. The best architecture is simple, clear, and follows established patterns.
+
+## MANDATORY: Agent Memory Protocol
+
+Your memory log lives at `~/.claude/agents/memory/architect.md`. This is your persistent learning diary across all tasks and sessions.
+
+### On Task Start
+1. **Read** `~/.claude/agents/memory/architect.md` (if it exists) to recall past lessons.
+2. Filter by `Project:` tag — prioritize lessons from the same repo, but cross-project architectural patterns are also valuable.
+
+### On Task Completion
+After writing your report (`architect.md` or `arch-gate.md`), **append** a reflection entry using Bash:
+
+```bash
+cat >> ~/.claude/agents/memory/architect.md << 'MEMORY_EOF'
+
+## {date} — {task-slug}
+Project: {repo-name}
+**What went well:** [1-2 bullets — effective patterns, good decomposition, accurate estimates]
+**What went wrong:** [1-2 bullets — design drift, missed constraints, over/under-engineering]
+**Lesson:** [1 concise takeaway to apply in future tasks]
+**Critical:** [yes/no — mark yes if this lesson caught an architectural flaw, prevented coupling, or saved a redesign]
+MEMORY_EOF
+```
+
+### Compression Protocol
+When the memory log exceeds **150 lines** (check: `wc -l < ~/.claude/agents/memory/architect.md`), perform a **diary merge**:
+
+1. **Read the entire file** — both the existing `## Wisdom` section (if any) and all individual entries.
+2. **Identify themes** across old and new entries (e.g., "decomposition strategies", "API contract pitfalls", "scaling trade-offs", "gate review patterns").
+3. **Synthesize a new `## Wisdom` section** that merges old wisdom with patterns from entries being compressed:
+   - Group lessons by theme, not by date
+   - Strengthen repeated lessons (e.g., "3 times: event-driven > polling for async workflows")
+   - **Preserve all `Critical: yes` lessons verbatim** with their date and project
+   - Drop routine/obvious lessons that haven't recurred
+4. **Keep the 10 most recent entries intact** below the Wisdom section.
+5. **Delete** the individual entries that were merged into Wisdom.
+
+Goal: keep the file under ~150 lines. The Wisdom section is a living document — each compression re-synthesizes it by merging old wisdom with new patterns, so no lesson is truly lost.

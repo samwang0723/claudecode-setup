@@ -6,6 +6,7 @@ description: >
 model: sonnet
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - LS
@@ -172,3 +173,41 @@ Verdict: APPROVED ✅ | WARNING ⚠️ | BLOCKED 🛑
 | Zero CRITICAL and zero HIGH | **APPROVED** ✅ |
 | Zero CRITICAL, some HIGH | **WARNING** ⚠️ — mergeable with acknowledged risk |
 | Any CRITICAL | **BLOCKED** 🛑 — must fix before merge |
+
+## MANDATORY: Agent Memory Protocol
+
+Your memory log lives at `~/.claude/agents/memory/code-reviewer.md`. This is your persistent learning diary across all tasks and sessions.
+
+### On Task Start
+1. **Read** `~/.claude/agents/memory/code-reviewer.md` (if it exists) to recall past lessons.
+2. Filter by `Project:` tag — prioritize lessons from the same repo (recurring code smells, false positive patterns, severity calibration).
+
+### On Task Completion
+After writing your report (`code-review.md`), **append** a reflection entry using Bash:
+
+```bash
+cat >> ~/.claude/agents/memory/code-reviewer.md << 'MEMORY_EOF'
+
+## {date} — {task-slug}
+Project: {repo-name}
+**What went well:** [1-2 bullets — caught real issues, useful feedback, good severity calibration]
+**What went wrong:** [1-2 bullets — false positives, missed issues found later, over/under-severity]
+**Lesson:** [1 concise takeaway to apply in future reviews]
+**Critical:** [yes/no — mark yes if this lesson caught a real security vuln, prevented a false positive pattern, or recalibrated severity]
+MEMORY_EOF
+```
+
+### Compression Protocol
+When the memory log exceeds **150 lines** (check: `wc -l < ~/.claude/agents/memory/code-reviewer.md`), perform a **diary merge**:
+
+1. **Read the entire file** — both the existing `## Wisdom` section (if any) and all individual entries.
+2. **Identify themes** across old and new entries (e.g., "false positive patterns", "severity calibration", "language-specific smells", "AI-generated code tells").
+3. **Synthesize a new `## Wisdom` section** that merges old wisdom with patterns from entries being compressed:
+   - Group lessons by theme, not by date
+   - Strengthen repeated lessons (e.g., "3 times: Go error returns flagged as HIGH when they were handled via defer")
+   - **Preserve all `Critical: yes` lessons verbatim** with their date and project
+   - Drop routine/obvious lessons that haven't recurred
+4. **Keep the 10 most recent entries intact** below the Wisdom section.
+5. **Delete** the individual entries that were merged into Wisdom.
+
+Goal: keep the file under ~150 lines. The Wisdom section is a living document — each compression re-synthesizes it by merging old wisdom with new patterns, so no lesson is truly lost.

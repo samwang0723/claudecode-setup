@@ -65,6 +65,7 @@ The installer is organized into numbered sections delimited by comment bars (`# 
 | Target | Count | Purpose |
 |--------|-------|---------|
 | `~/.claude/agents/*.md` | 8 | team-lead, architect, dev, code-reviewer, qa, security-reviewer, pm, explorer |
+| `~/.claude/agents/memory/` | dir | Agent learning logs — persistent diary of lessons learned per agent |
 | `~/.claude/skills/*/` | 25 | 9 pipeline + 3 team + 6 document/utility + 4 effective-* + 3 other skills |
 | `~/.claude/rules/*/` | 5 dirs | kit, common, golang, python, typescript (auto-loaded by Claude Code rules) |
 | `~/.claude/settings.json` | merge | Permissions, model, env vars, plugins (merged with existing) |
