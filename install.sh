@@ -354,6 +354,10 @@ if $DRY_RUN; then
 		info "Would create ~/.claude/skills/$skill/"
 	done
 else
+	# Clear previous backup directory (fresh backups created each install)
+	if [ -d "$BACKUP_DIR" ]; then
+		rm -rf "$BACKUP_DIR"
+	fi
 	mkdir -p "$AGENTS_DIR" "$AGENTS_DIR/memory" "$BACKUP_DIR" "$SKILLS_DIR"
 	for rule_dir in $RULE_DIRS; do
 		mkdir -p "$RULES_DIR/$rule_dir"
