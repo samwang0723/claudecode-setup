@@ -39,7 +39,7 @@ box_line() {
 	echo -e "${BOLD}|${_pad}|${NC}"
 }
 
-TOTAL_STEPS=9
+TOTAL_STEPS=8
 CURRENT_STEP=0
 step() {
 	((CURRENT_STEP++))
@@ -829,49 +829,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 9. Visual Explainer Plugin (optional) — visual diagrams, slides, plans
-# ---------------------------------------------------------------------------
-step "Visual Explainer Plugin (optional)..."
-
-if $DRY_RUN; then
-	info "Would ask to install visual-explainer plugin (optional)"
-else
-	INSTALL_VE=false
-	if $YES_FLAG; then
-		INSTALL_VE=true
-	else
-		echo ""
-		echo -e "${CYAN}visual-explainer${NC} provides visual HTML diagrams, slides, plan reviews, diff reviews, and project recaps."
-		echo -n -e "  Install visual-explainer plugin? [y/N] "
-		read -r VE_ANSWER
-		case "$VE_ANSWER" in
-		[yY] | [yY][eE][sS]) INSTALL_VE=true ;;
-		*) INSTALL_VE=false ;;
-		esac
-	fi
-
-	if $INSTALL_VE; then
-		VE_TMP_DIR=$(mktemp -d)
-		info "Cloning visual-explainer..."
-		if git clone --depth 1 https://github.com/samwang0723/visual-explainer.git "$VE_TMP_DIR" 2>/dev/null; then
-			if [ -f "$VE_TMP_DIR/install-pi.sh" ]; then
-				chmod +x "$VE_TMP_DIR/install-pi.sh"
-				(cd "$VE_TMP_DIR" && ./install-pi.sh) && log "visual-explainer plugin installed" || warn "visual-explainer install had issues — run manually"
-			else
-				err "install-pi.sh not found in visual-explainer repo"
-			fi
-		else
-			err "Failed to clone visual-explainer — install manually:"
-			info "git clone https://github.com/samwang0723/visual-explainer.git && cd visual-explainer && ./install-pi.sh"
-		fi
-		rm -rf "$VE_TMP_DIR"
-	else
-		info "Skipping visual-explainer"
-	fi
-fi
-
-# ---------------------------------------------------------------------------
-# 10. Summary
+# 9. Summary
 # ---------------------------------------------------------------------------
 if $DRY_RUN; then
 	echo ""

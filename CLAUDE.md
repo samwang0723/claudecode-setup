@@ -46,8 +46,7 @@ The installer is organized into numbered sections delimited by comment bars (`# 
 | 6. Cleanup | Warns about deprecated `~/.claude/commands/` |
 | 7. RTK | Installs RTK (Rust Token Killer) token-optimized CLI proxy; runs `rtk init -g` |
 | 8. Agent Browser | Optional: installs agent-browser for browser automation |
-| 9. Visual Explainer | Optional: installs visual-explainer plugin for diagrams and slides |
-| 10. Summary | Final output with revert instructions |
+| 9. Summary | Final output with revert instructions |
 
 ## Key Design Decisions
 
