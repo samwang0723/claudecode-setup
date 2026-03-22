@@ -82,6 +82,32 @@ install_template() {
 	manifest "CREATED" "~/.claude/$rel"
 }
 
+# Back up an entire directory to .kit-backup/dirs/<relative-path>/
+# Usage: backup_dir <relative-path>  (e.g. "agents" or "rules/common")
+backup_dir() {
+	local rel="$1"
+	local src="$CLAUDE_DIR/$rel"
+	local dst="$BACKUP_DIR/dirs/$rel"
+	if [ -d "$src" ] && [ "$(ls -A "$src" 2>/dev/null)" ]; then
+		mkdir -p "$dst"
+		cp -R "$src"/* "$dst"/ 2>/dev/null || true
+		manifest "BACKED_UP_DIR" "~/.claude/$rel"
+	fi
+}
+
+# Back up an individual file to .kit-backup/files/<relative-path>
+# Usage: backup_file <relative-path>  (e.g. "settings.json" or "CLAUDE.md")
+backup_file() {
+	local rel="$1"
+	local src="$CLAUDE_DIR/$rel"
+	local dst="$BACKUP_DIR/files/$rel"
+	if [ -f "$src" ]; then
+		mkdir -p "$(dirname "$dst")"
+		cp "$src" "$dst"
+		manifest "BACKED_UP" "~/.claude/$rel"
+	fi
+}
+
 # ---------------------------------------------------------------------------
 # Revert function — restores pre-install state from manifest
 # ---------------------------------------------------------------------------
@@ -129,14 +155,32 @@ revert_kit() {
 			fi
 			;;
 		BACKED_UP)
-			local backup_name
-			backup_name=$(basename "$filepath")
-			local backup_path="$BACKUP_DIR/$backup_name"
+			local backup_rel="${filepath#$HOME/.claude/}"
+			local backup_path="$BACKUP_DIR/files/$backup_rel"
+			# Fallback: check legacy flat location for older manifests
+			if [ ! -f "$backup_path" ]; then
+				backup_path="$BACKUP_DIR/$(basename "$filepath")"
+			fi
 			if [ -f "$backup_path" ]; then
 				cp "$backup_path" "$filepath"
 				log "Restored: $filepath (from backup)"
 			else
 				warn "No backup found for $filepath — skipping"
+				((errors++)) || true
+			fi
+			;;
+		BACKED_UP_DIR)
+			local dir_backup="$BACKUP_DIR/dirs/${filepath#$HOME/.claude/}"
+			if [ -d "$dir_backup" ]; then
+				# Remove current contents and restore from backup
+				if [ -d "$filepath" ]; then
+					rm -rf "$filepath"
+				fi
+				mkdir -p "$filepath"
+				cp -R "$dir_backup"/* "$filepath"/ 2>/dev/null || true
+				log "Restored directory: $filepath (from backup)"
+			else
+				warn "No directory backup found for $filepath — skipping"
 				((errors++)) || true
 			fi
 			;;
@@ -154,7 +198,8 @@ revert_kit() {
 	# Auto-strip legacy kit sections from CLAUDE.md
 	local global_claude_md="$CLAUDE_DIR/CLAUDE.md"
 	if [ -f "$global_claude_md" ] && grep -qnF "## Architecture: Skills + Agents" "$global_claude_md"; then
-		cp "$global_claude_md" "$BACKUP_DIR/CLAUDE.md.pre-strip"
+		mkdir -p "$BACKUP_DIR/files"
+		cp "$global_claude_md" "$BACKUP_DIR/files/CLAUDE.md.pre-strip"
 		local marker_line
 		marker_line=$(grep -nF "## Architecture: Skills + Agents" "$global_claude_md" | head -1 | cut -d: -f1)
 		# Also strip preceding blank lines (up to 2)
@@ -507,13 +552,11 @@ else
 		# Validate existing JSON before attempting merge
 		if ! jq empty "$SETTINGS_FILE" 2>/dev/null; then
 			warn "Existing settings.json is invalid JSON — backing up and creating fresh"
-			cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json.invalid"
+			backup_file "settings.json"
 			echo "$KIT_DEFAULTS" | jq . >"$SETTINGS_FILE"
-			manifest "BACKED_UP" "~/.claude/settings.json"
 			log "Created settings.json (fresh — invalid original backed up)"
 		else
-			cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json"
-			manifest "BACKED_UP" "~/.claude/settings.json"
+			backup_file "settings.json"
 
 			# Deep merge: kit defaults as base, user values override
 			# Objects merge recursively (user wins per key)
@@ -553,7 +596,7 @@ else
 				log "Merged settings.json (user values preserved)"
 			else
 				err "settings.json merge produced invalid JSON — restoring backup"
-				cp "$BACKUP_DIR/settings.json" "$SETTINGS_FILE"
+				cp "$BACKUP_DIR/files/settings.json" "$SETTINGS_FILE"
 				exit 1
 			fi
 		fi
@@ -565,8 +608,8 @@ else
 	# Final validation: ensure settings.json is valid before continuing
 	if ! jq empty "$SETTINGS_FILE" 2>/dev/null; then
 		err "settings.json is invalid after write — restoring backup if available"
-		if [ -f "$BACKUP_DIR/settings.json" ]; then
-			cp "$BACKUP_DIR/settings.json" "$SETTINGS_FILE"
+		if [ -f "$BACKUP_DIR/files/settings.json" ]; then
+			cp "$BACKUP_DIR/files/settings.json" "$SETTINGS_FILE"
 			warn "Restored settings.json from backup"
 		fi
 		exit 1
@@ -582,10 +625,7 @@ if $DRY_RUN; then
 	fi
 else
 	if [ -f "$TEMPLATES_DIR/powerline.json" ]; then
-		if [ -f "$CLAUDE_DIR/powerline.json" ]; then
-			cp "$CLAUDE_DIR/powerline.json" "$BACKUP_DIR/powerline.json"
-			manifest "BACKED_UP" "~/.claude/powerline.json"
-		fi
+		backup_file "powerline.json"
 		cp "$TEMPLATES_DIR/powerline.json" "$CLAUDE_DIR/powerline.json"
 		manifest "CREATED" "~/.claude/powerline.json"
 		log "Copied powerline.json → ~/.claude/powerline.json"
@@ -620,8 +660,9 @@ else
 		done
 
 		if $is_protected; then
-			# Protected: copy files over without deleting the directory
+			# Protected: back up and copy files over without deleting the directory
 			# This preserves any user-added files in rules/common/ and rules/kit/
+			backup_dir "rules/$rule_dir"
 			mkdir -p "$rule_dst"
 			cp -R "$rule_src"/* "$rule_dst"/ 2>/dev/null || true
 		else
@@ -650,8 +691,7 @@ else
 	if [ -f "$GLOBAL_CLAUDE_MD" ]; then
 		if grep -qF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD"; then
 			warn "Found old kit sections in CLAUDE.md — stripping (content now in rules/kit/)"
-			cp "$GLOBAL_CLAUDE_MD" "$BACKUP_DIR/CLAUDE.md"
-			manifest "BACKED_UP" "~/.claude/CLAUDE.md"
+			backup_file "CLAUDE.md"
 			MARKER_LINE=$(grep -nF "$LEGACY_MARKER" "$GLOBAL_CLAUDE_MD" | head -1 | cut -d: -f1)
 			# Also strip preceding blank lines (up to 2)
 			START_LINE=$((MARKER_LINE > 2 ? MARKER_LINE - 2 : MARKER_LINE))
@@ -697,6 +737,9 @@ if $DRY_RUN; then
 	done
 else
 
+	# Back up existing agents directory before overwriting
+	backup_dir "agents"
+
 	for agent in $AGENT_NAMES; do
 		install_template "agents/$agent.md"
 		log "Created agent: $agent"
@@ -720,7 +763,8 @@ else
 		skill_src="$TEMPLATES_DIR/skills/$skill"
 		skill_dst="$SKILLS_DIR/$skill"
 
-		# Copy skill directory in-place (preserves user-added files)
+		# Back up and copy skill directory in-place (preserves user-added files)
+		backup_dir "skills/$skill"
 		mkdir -p "$skill_dst"
 		cp -R "$skill_src"/* "$skill_dst"/ 2>/dev/null || true
 
