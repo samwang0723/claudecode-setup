@@ -52,19 +52,13 @@ This reads the manifest, deletes all kit-created files, restores backups from `~
 
 `.claude/tasks/` folders in your projects are kept — they're your documentation.
 
-### Everything Claude Code Plugin
+### Visual Explainer Plugin
+
+Visual HTML diagrams, slides, plan reviews, diff reviews, and project recaps.
 
 ```bash
-# Add marketplace
-/plugin marketplace add affaan-m/everything-claude-code
-
-# Install plugin
-/plugin install everything-claude-code@everything-claude-code
-
-# Clone the repo first
-git clone https://github.com/affaan-m/everything-claude-code.git
-cd everything-claude-code
-./install.sh typescript python golang
+/plugin marketplace add samwang0723/visual-explainer
+/plugin install visual-explainer@visual-explainer-marketplace
 ```
 
 ## Architecture
