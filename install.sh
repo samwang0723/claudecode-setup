@@ -606,18 +606,31 @@ if $DRY_RUN; then
 	info "Would handle CLAUDE.md legacy markers + kit reference"
 else
 
+	# Protected rule dirs: overwrite files in-place (preserve user additions)
+	PROTECTED_RULE_DIRS="common kit"
+
 	# Copy all rule directories from templates
 	for rule_dir in $RULE_DIRS; do
 		rule_src="$TEMPLATES_DIR/rules/$rule_dir"
 		rule_dst="$RULES_DIR/$rule_dir"
 
-		# Remove existing rule directory to ensure clean state
-		if [ -d "$rule_dst" ]; then
-			rm -rf "$rule_dst"
-		fi
+		is_protected=false
+		for p in $PROTECTED_RULE_DIRS; do
+			[ "$rule_dir" = "$p" ] && is_protected=true && break
+		done
 
-		# Copy entire rule directory
-		cp -R "$rule_src" "$rule_dst"
+		if $is_protected; then
+			# Protected: copy files over without deleting the directory
+			# This preserves any user-added files in rules/common/ and rules/kit/
+			mkdir -p "$rule_dst"
+			cp -R "$rule_src"/* "$rule_dst"/ 2>/dev/null || true
+		else
+			# Non-protected (golang, python, typescript): trash and recreate
+			if [ -d "$rule_dst" ]; then
+				trash "$rule_dst" 2>/dev/null || { warn "trash not available, falling back to overwrite"; }
+			fi
+			cp -R "$rule_src" "$rule_dst"
+		fi
 
 		# Manifest all files
 		find "$rule_dst" -type f | while read -r f; do
@@ -707,13 +720,9 @@ else
 		skill_src="$TEMPLATES_DIR/skills/$skill"
 		skill_dst="$SKILLS_DIR/$skill"
 
-		# Remove existing skill directory to ensure clean state
-		if [ -d "$skill_dst" ]; then
-			rm -rf "$skill_dst"
-		fi
-
-		# Copy entire skill directory (SKILL.md + references, scripts, templates, etc.)
-		cp -R "$skill_src" "$skill_dst"
+		# Copy skill directory in-place (preserves user-added files)
+		mkdir -p "$skill_dst"
+		cp -R "$skill_src"/* "$skill_dst"/ 2>/dev/null || true
 
 		# Manifest all files in the skill directory
 		find "$skill_dst" -type f | while read -r f; do
