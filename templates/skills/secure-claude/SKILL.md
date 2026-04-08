@@ -1,13 +1,6 @@
 ---
-name: secure-claude
-description: >
-  Security audit for Claude Code configuration. Scans all agents, skills, rules,
-  hooks, settings, and MCP servers for malware, data exfiltration, unauthorized
-  external communication, prompt injection, or system compromise. Use when asked
-  to "audit claude config", "check for malware", "security scan", "is my claude
-  setup safe", "scan hooks", "check skills for backdoors", or any concern about
-  the safety of installed Claude Code extensions. Also trigger when the user
-  installs new skills/agents from untrusted sources and wants verification.
+name: secure-config
+description: "Security audit for Claude Code configuration. Scans agents, skills, rules, hooks, settings, and MCP servers for malware, data exfiltration, prompt injection, or system compromise. Use when the user says 'audit config', 'check for malware', 'security scan', 'is my setup safe', 'scan hooks', 'check skills for backdoors', or installs new skills/agents from untrusted sources."
 ---
 
 # Secure Claude — Configuration Security Audit
