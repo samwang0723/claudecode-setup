@@ -1,39 +1,38 @@
-# /learn - Extract Reusable Patterns
+---
+name: learn
+description: "Extract reusable patterns from the current session and save them as skill files. Use when the user says 'learn from this', 'extract patterns', 'save this as a skill', 'what did we learn', or after solving a non-trivial debugging or integration problem worth capturing for future sessions."
+---
 
-Analyze the current session and extract any patterns worth saving as skills.
+# Extract Reusable Patterns
 
-## Trigger
+Analyze the current session and extract patterns worth saving as reusable skill files in `~/.claude/skills/learned/`.
 
-Run `/learn` at any point during a session when you've solved a non-trivial problem.
+## Workflow
 
-## What to Extract
+### Step 1: Identify Extractable Patterns
 
-Look for:
+Review the session for these pattern categories:
 
-1. **Error Resolution Patterns**
-   - What error occurred?
-   - What was the root cause?
-   - What fixed it?
-   - Is this reusable for similar errors?
+1. **Error Resolution** — Non-obvious root causes and their fixes (e.g., "Jest mock hoisting causes undefined when imported after mock setup — move `jest.mock()` above imports")
+2. **Debugging Techniques** — Tool combinations or diagnostic sequences that worked (e.g., "Use `git bisect` + `vitest --reporter=verbose` to isolate flaky test to specific commit")
+3. **Workarounds** — Library quirks, API limitations, version-specific fixes (e.g., "Next.js 14 `useSearchParams` requires `Suspense` boundary or build fails silently")
+4. **Project Conventions** — Codebase patterns, architecture decisions, integration approaches discovered during the session
 
-2. **Debugging Techniques**
-   - Non-obvious debugging steps
-   - Tool combinations that worked
-   - Diagnostic patterns
+### Step 2: Evaluate Reusability
 
-3. **Workarounds**
-   - Library quirks
-   - API limitations
-   - Version-specific fixes
+Skip patterns that are:
+- Trivial fixes (typos, simple syntax errors)
+- One-time issues (specific API outages, transient failures)
+- Already documented in project README or CLAUDE.md
 
-4. **Project-Specific Patterns**
-   - Codebase conventions discovered
-   - Architecture decisions made
-   - Integration patterns
+Keep patterns that:
+- Would save 5+ minutes if encountered again
+- Apply across multiple projects or contexts
+- Involve non-obvious behavior or undocumented quirks
 
-## Output Format
+### Step 3: Draft the Skill File
 
-Create a skill file at `~/.claude/skills/learned/[pattern-name].md`:
+Create `~/.claude/skills/learned/[pattern-name].md` using this structure:
 
 ```markdown
 # [Descriptive Pattern Name]
@@ -42,29 +41,27 @@ Create a skill file at `~/.claude/skills/learned/[pattern-name].md`:
 **Context:** [Brief description of when this applies]
 
 ## Problem
-[What problem this solves - be specific]
+[What problem this solves — be specific about symptoms]
 
 ## Solution
-[The pattern/technique/workaround]
+[The pattern/technique/workaround — include concrete steps]
 
 ## Example
 [Code example if applicable]
 
 ## When to Use
-[Trigger conditions - what should activate this skill]
+[Trigger conditions — what should activate this skill]
 ```
 
-## Process
+### Step 4: Confirm and Save
 
-1. Review the session for extractable patterns
-2. Identify the most valuable/reusable insight
-3. Draft the skill file
-4. Ask user to confirm before saving
-5. Save to `~/.claude/skills/learned/`
+1. Present the drafted skill to the user with a summary of what was captured
+2. Ask for confirmation before writing the file
+3. Save to `~/.claude/skills/learned/` on approval
 
-## Notes
+## Guidelines
 
-- Don't extract trivial fixes (typos, simple syntax errors)
-- Don't extract one-time issues (specific API outages, etc.)
-- Focus on patterns that will save time in future sessions
-- Keep skills focused - one pattern per skill
+- One pattern per skill file — keep each focused and self-contained
+- Use kebab-case for filenames (e.g., `jest-mock-hoisting-fix.md`)
+- Include concrete examples with real code when possible
+- Write trigger conditions that help future sessions auto-activate the pattern

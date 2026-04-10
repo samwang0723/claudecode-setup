@@ -1,156 +1,71 @@
 ---
 name: write-tech-spec
-description: Create technical specification documents following the template.
-triggers:
-  - "write tech spec"
-  - "create tech spec"
-  - "tech spec"
-  - "technical specification"
+description: "Generate a technical specification document using the DDD template in template.md. Use when the user says 'write tech spec', 'create tech spec', 'technical specification', or needs a structured design document for a new feature or major change covering architecture, domain models, APIs, data design, security, and operations."
 ---
 
-# Write Tech Spec Skill
+# Write Tech Spec
 
-Generate technical specification documents following the template.
-
-## Usage
-
-```
-/write-tech-spec [feature name]
-```
-
-## What This Skill Does
-
-1. **Gathers information** about the feature/change through targeted questions
-2. **Generates a complete tech spec** following the TMAB template structure
-3. **Outputs both formats**:
-   - Markdown file for local storage/git
-   - Confluence-ready content for direct upload
-
-## Template Structure
-
-The tech spec follows DDD (Domain Driven Design) approach with these sections:
-
-### Header Metadata
-
-- Team
-- Feature Label
-- Authors
-- Audiences
-- Status (Draft → In Review → Approved/Rejected)
-- Version
-- Reviewers
-- Useful links (PRD/Figma/Slack)
-- Approved Date
-
-### Main Sections
-
-1. **TL;DR Change Summary** - Quick purpose and major changes
-2. **Background** - Objective, Goals, Non-Goals
-3. **Architecture Overview** - Component diagram, Service relationships
-4. **Domain Design** - Use cases, Fund flows, Domain models, State machines, Configuration
-5. **Data Design** - DB schemas, Storage, Privacy, Retention
-6. **APIs Design** - Model definitions, User/Internal/Partner APIs, Sequence diagrams
-7. **Logging Design** - Log information and privacy considerations
-8. **Security Design** - Auth, XSS/CSRF/CORS/SQL injection prevention
-9. **Compatibility Design** - Backward compatibility, supported platforms
-10. **Operations** - Capacity, Rollout, Monitoring, Fallback, Security assessment, Testing, Infrastructure
+Generate a complete technical specification document following the DDD (Domain Driven Design) template at `template.md`.
 
 ## Workflow
 
 ### Step 1: Gather Context
 
-Ask the user for:
+Ask the user for these essentials before generating:
 
-- Feature name and description
-- Is this a new feature or modification?
-- Which pillar/team owns this?
-- Key stakeholders/reviewers
-- Related PRD/Figma/Slack links
+- **Feature name** and one-line description
+- **New feature or modification** to an existing service?
+- **Owning team/pillar** and key stakeholders/reviewers
+- **Related links** — PRD, Figma, Slack threads, existing docs
 
 ### Step 2: Technical Discovery
 
-For each relevant section, ask targeted questions:
+For each relevant template section, ask targeted questions:
 
-- What services are involved?
-- Are there new domain models?
-- Any database schema changes?
-- API endpoints needed?
-- Feature flags/configuration?
+| Section | Key Questions |
+|---------|--------------|
+| Architecture | What services are involved? Upstream/downstream dependencies? |
+| Domain | New domain models or entities? State machines needed? |
+| Data | Database schema changes? PII considerations? Retention policy? |
+| APIs | New endpoints? Error code patterns? Rate limiting needs? |
+| Security | External exposure? Auth changes? Threat model required? |
+| Operations | Feature flags? Rollout strategy? Monitoring metrics? |
 
-### Step 3: Generate Tech Spec
+Skip sections the user confirms are not applicable — mark them "N/A" in the output.
 
-Create the document with:
+### Step 3: Generate the Spec
 
-- All gathered information filled in
-- Placeholders for diagrams (marked with `[DIAGRAM: description]`)
-- Code blocks for schemas, APIs, state machines
-- Clear action items marked with `[TODO: description]`
+1. Read `template.md` from this skill directory for the full document structure
+2. Fill in each section with gathered information
+3. Mark gaps with `[TODO: description]` placeholders
+4. Mark diagram locations with `[DIAGRAM: description]` placeholders
+5. Use mermaid code blocks for architecture and sequence diagrams where possible
 
-### Step 4: Output
+### Step 4: Output and Review
 
-1. Save markdown to `.claude/tasks/{slug}/tech-spec.md`
-2. Optionally upload to Confluence using `mcp__atlassian__confluence_create_page`
+1. Save the completed spec to `.claude/tasks/{slug}/tech-spec.md`
+2. Present a summary of completed vs TODO sections for user review
+3. Optionally upload to Confluence using `mcp__atlassian__confluence_create_page`
 
-## Section Guidelines
+## Template Reference
 
-### TL;DR Change Summary
+The full template structure lives in `template.md` (bundled with this skill). Key sections:
 
-Keep it to 2-3 sentences. Answer: What? Why? Impact?
+1. **TL;DR Change Summary** — 2-3 sentences: What? Why? Impact?
+2. **Background** — Objective, Goals, Non-Goals
+3. **Architecture Overview** — Component diagram, service relationships
+4. **Domain Design** — Use cases, fund flows, domain models, state machines, configuration
+5. **Data Design** — DB schemas, storage, privacy, retention
+6. **APIs Design** — Model definitions, endpoints, sequence diagrams, error codes (`{App}-{4-digit-code}`)
+7. **Logging Design** — Log structure with PII masking
+8. **Security Design** — Auth, XSS/CSRF/CORS/SQLi prevention, key management
+9. **Compatibility Design** — Backward compatibility, platform support
+10. **Operations** — Capacity, rollout plan, monitoring, fallback, security assessment, testing, infrastructure
 
-### Background
+### Operations Sections Are Required
 
-- **Objective**: Why this change is needed
-- **Goals**: Prioritized list of what the system will do
-- **Non-Goals**: Explicitly out of scope items
+Every tech spec must include rollout plan, monitoring metrics/alerts, fallback plan, and security assessment — these are non-negotiable for production readiness.
 
-### Architecture Overview
+---
 
-Include component diagram showing position in overall architecture.
-List upstream/downstream service relationships.
-
-### Domain Design
-
-- Use cases with actors and scenarios
-- Fund flow diagrams if financial transactions involved
-- Domain models (entities, value objects)
-- State machines for stateful models
-- Configuration/feature flags
-
-### Data Design
-
-- ER diagrams for schema changes
-- Consider user vs non-user data separation
-- Privacy by design for PII
-- Retention and archival strategy
-
-### APIs Design
-
-- OpenAPI specifications (link to ma-backend\_\_openapi-mock)
-- Sequence diagrams for critical flows
-- Idempotency, rate limiting, caching mechanisms
-- Error codes following pattern: `{App}-{4-digit-error-code}`
-- Timeout and retry mechanisms
-
-### Security Design
-
-- Authentication/authorization
-- XSS/CSRF/CORS/SQL injection prevention
-- Key management
-- Threat modeling if external exposure
-
-### Operations (REQUIRED)
-
-- **Rollout Plan**: Incremental deployment strategy
-- **Monitoring**: Metrics, alerts, dashboards
-- **Fallback Plan**: Feature flags, kill switches
-- **Security Assessment**: Work with security team before release
-
-## Error Code Structure
-
-```
-{App}-{Service Error Code}
-
-Examples:
-CC-0400 Transaction rejected
-CC-0401 Service unexpected error
-```
+Focus: $ARGUMENTS

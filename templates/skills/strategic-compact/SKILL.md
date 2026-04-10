@@ -1,72 +1,30 @@
 ---
 name: strategic-compact
-description: Suggests manual context compaction at logical intervals to preserve context through task phases rather than arbitrary auto-compaction.
+description: "Suggest manual /compact at logical workflow boundaries instead of relying on arbitrary auto-compaction. Use when the session approaches context limits, after completing a major milestone, when switching between unrelated tasks, or when responses become less coherent due to context pressure. Pairs with the suggest-compact.sh hook for automated threshold detection."
 ---
 
-# Strategic Compact Skill
+# Strategic Compact
 
-Suggests manual `/compact` at strategic points in your workflow rather than relying on arbitrary auto-compaction.
+Suggest manual `/compact` at logical workflow boundaries to preserve important context through task phases, rather than relying on auto-compaction that triggers at arbitrary points mid-task.
 
-## When to Activate
+## Workflow
 
-- Running long sessions that approach context limits (200K+ tokens)
-- Working on multi-phase tasks (research → plan → implement → test)
-- Switching between unrelated tasks within the same session
-- After completing a major milestone and starting new work
-- When responses slow down or become less coherent (context pressure)
+### Step 1: Assess Compaction Need
 
-## Why Strategic Compaction?
+Check these indicators:
 
-Auto-compaction triggers at arbitrary points:
-- Often mid-task, losing important context
-- No awareness of logical task boundaries
-- Can interrupt complex multi-step operations
+| Indicator | Action |
+|-----------|--------|
+| 50+ tool calls in session (hook fires) | Evaluate current phase before compacting |
+| Transitioning from research → implementation | Compact — research context is bulky, plan is the distilled output |
+| Just finished debugging a complex issue | Compact — debug traces pollute context for next task |
+| Mid-implementation with active changes | Do NOT compact — losing file paths, variable names, and partial state is costly |
+| Switching to an unrelated task | Compact — clear stale context before new focus |
 
-Strategic compaction at logical boundaries:
-- **After exploration, before execution** — Compact research context, keep implementation plan
-- **After completing a milestone** — Fresh start for next phase
-- **Before major context shifts** — Clear exploration context before different task
+### Step 2: Apply the Decision Guide
 
-## How It Works
-
-The `suggest-compact.js` script runs on PreToolUse (Edit/Write) and:
-
-1. **Tracks tool calls** — Counts tool invocations in session
-2. **Threshold detection** — Suggests at configurable threshold (default: 50 calls)
-3. **Periodic reminders** — Reminds every 25 calls after threshold
-
-## Hook Setup
-
-Add to your `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit",
-        "hooks": [{ "type": "command", "command": "node ~/.claude/skills/strategic-compact/suggest-compact.js" }]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [{ "type": "command", "command": "node ~/.claude/skills/strategic-compact/suggest-compact.js" }]
-      }
-    ]
-  }
-}
-```
-
-## Configuration
-
-Environment variables:
-- `COMPACT_THRESHOLD` — Tool calls before first suggestion (default: 50)
-
-## Compaction Decision Guide
-
-Use this table to decide when to compact:
-
-| Phase Transition | Compact? | Why |
-|-----------------|----------|-----|
+| Phase Transition | Compact? | Reason |
+|-----------------|----------|--------|
 | Research → Planning | Yes | Research context is bulky; plan is the distilled output |
 | Planning → Implementation | Yes | Plan is in TodoWrite or a file; free up context for code |
 | Implementation → Testing | Maybe | Keep if tests reference recent code; compact if switching focus |
@@ -74,38 +32,46 @@ Use this table to decide when to compact:
 | Mid-implementation | No | Losing variable names, file paths, and partial state is costly |
 | After a failed approach | Yes | Clear the dead-end reasoning before trying a new approach |
 
-## What Survives Compaction
+### Step 3: Preserve Before Compacting
 
-Understanding what persists helps you compact with confidence:
+Before running `/compact`, save critical context:
+1. Write important findings to files or `~/.claude/memory/`
+2. Ensure the TodoWrite task list reflects current state
+3. Commit any in-progress work to git
+4. Add a summary message: `/compact Focus on implementing auth middleware next`
+
+### What Survives Compaction
 
 | Persists | Lost |
 |----------|------|
 | CLAUDE.md instructions | Intermediate reasoning and analysis |
-| TodoWrite task list | File contents you previously read |
+| TodoWrite task list | File contents previously read |
 | Memory files (`~/.claude/memory/`) | Multi-step conversation context |
 | Git state (commits, branches) | Tool call history and counts |
 | Files on disk | Nuanced user preferences stated verbally |
 
-## Best Practices
+## Hook Setup
 
-1. **Compact after planning** — Once plan is finalized in TodoWrite, compact to start fresh
-2. **Compact after debugging** — Clear error-resolution context before continuing
-3. **Don't compact mid-implementation** — Preserve context for related changes
-4. **Read the suggestion** — The hook tells you *when*, you decide *if*
-5. **Write before compacting** — Save important context to files or memory before compacting
-6. **Use `/compact` with a summary** — Add a custom message: `/compact Focus on implementing auth middleware next`
+The `suggest-compact.sh` script (bundled with this skill) tracks tool calls and suggests compaction at configurable thresholds. Add to `~/.claude/settings.json`:
 
-## Token Optimization Patterns
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "~/.claude/skills/strategic-compact/suggest-compact.sh" }]
+      }
+    ]
+  }
+}
+```
 
-### Context Composition Awareness
-Monitor what's consuming your context window:
-- **CLAUDE.md files** — Always loaded, keep lean
-- **Loaded skills** — Each skill adds 1-5K tokens
-- **Conversation history** — Grows with each exchange
-- **Tool results** — File reads, search results add bulk
+Configure via environment variable: `COMPACT_THRESHOLD` (default: 50 tool calls before first suggestion, then every 25 calls after).
 
-### Duplicate Instruction Detection
-Common sources of duplicate context:
-- Same rules in both `~/.claude/rules/` and project `.claude/rules/`
-- Skills that repeat CLAUDE.md instructions
-- Multiple skills covering overlapping domains
+## Context Optimization Tips
+
+- **Keep CLAUDE.md lean** — it loads into every conversation
+- **Watch for duplicate rules** — same content in `~/.claude/rules/` and project `.claude/rules/`
+- **Each loaded skill adds 1-5K tokens** — disable unused skills to free context
+- **Large tool results (file reads, searches) accumulate fast** — compact after exploration-heavy phases
