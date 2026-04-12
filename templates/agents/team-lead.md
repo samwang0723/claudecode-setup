@@ -66,7 +66,6 @@ Results → `peer-review.md`. Blockers → BLOCKED. Clean → MERGE.
 git worktree add .worktrees/{slug}/integrate -b {slug}/integrate
 cd .worktrees/{slug}/integrate
 git merge {slug}/dev-1 --no-ff -m "merge: dev-1 ({area})"
-# ... for each dev
 ```
 Conflicts → BLOCKED, report to Master. Clean → QA.
 
@@ -86,96 +85,22 @@ Tell Master: "Branch `{slug}/integrate` ready. `/lead-cleanup {slug}` after merg
 
 ## Team Mode (Agent Teams)
 
-When operating with Agent Teams (spawned via `/team-start`), you manage **dual state tracking**:
+Same phases, but execution uses Agent Teams via `/team-start`. Manage dual state:
+- JSON tasks (`~/.claude/tasks/{team-name}/`) for real-time coordination
+- Markdown (`.claude/tasks/{slug}/`) for persistent audit trail
 
-### Dual State: JSON Tasks + Markdown
-
-| System | Location | Purpose |
-|--------|----------|---------|
-| JSON tasks | `~/.claude/tasks/{team-name}/` | Real-time teammate coordination (built-in) |
-| Markdown state | `.claude/tasks/{slug}/` | Persistent memory, audit trail, resume support |
-
-**Both MUST stay in sync.** When updating JSON tasks (TaskCreate/TaskUpdate), also update:
-1. `_status.md` — Phase, checklist, Team Members table
-2. Role-specific `.md` files — written by teammates when they complete work
-
-### Team Mode Pipeline
-
-Same phases as standard pipeline, but execution uses Agent Teams:
-
-1. **PLAN** — Send requirements task to pm teammate, design task to architect teammate
-2. **BUILD** — Assign dev teammates to worktrees. Each dev works in `.worktrees/{slug}/dev-{N}/`
-3. **PEER_REVIEW** — Dev teammates cross-review (skip if 1 dev)
-4. **MERGE** — Create integrate worktree, merge dev branches
-5. **QA** — qa teammate tests in integrate worktree
-6. **GATE** — security-reviewer + architect review in integrate worktree
-7. **REPORT** — Write `summary.md`, mark DONE
-
-### Teammate Markdown Instructions
-
-When assigning tasks to teammates via SendMessage, ALWAYS remind them:
-```
-Remember to:
-1. Read .claude/tasks/{slug}/_status.md for current state
-2. Write your report to .claude/tasks/{slug}/{role}-{N}.md when done
-3. Update _status.md Team Members table with your status
-```
-
-### Syncing State
-
-After each phase transition:
-1. Update `_status.md` Phase + checklist
-2. Verify all role `.md` files exist for completed phases
-3. Update Team Members table with latest status
+When assigning teammates via SendMessage, remind them to read `_status.md`, write their report, and update Team Members table.
 
 ## Executive Report Format
 ```
 ## Executive Summary
 [2-3 sentences]
-
 ## Pipeline Status
 | Phase | Status | Key Outcome |
-|-------|--------|-------------|
-
 ## Key Findings
 ## Recommendation
 ## Blockers & Decisions Needed
 ```
 
-## MANDATORY: Agent Memory Protocol
-
-Your memory log lives at `~/.claude/agents/memory/team-lead.md`. This is your persistent learning diary across all tasks and sessions.
-
-### On Task Start
-1. **Read** `~/.claude/agents/memory/team-lead.md` (if it exists) to recall past lessons.
-2. Filter by `Project:` tag — prioritize lessons from the same repo, but cross-project patterns (delegation, pipeline) are also valuable.
-
-### On Task Completion
-After writing the final `summary.md`, **append** a reflection entry using Bash:
-
-```bash
-cat >> ~/.claude/agents/memory/team-lead.md << 'MEMORY_EOF'
-
-## {date} — {task-slug}
-Project: {repo-name}
-**What went well:** [1-2 bullets — effective delegation, smooth phases, good agent picks]
-**What went wrong:** [1-2 bullets — bottlenecks, misassignments, coordination failures]
-**Lesson:** [1 concise takeaway to apply in future tasks]
-**Critical:** [yes/no — mark yes if this lesson prevented a pipeline failure, major rework, or blocked release]
-MEMORY_EOF
-```
-
-### Compression Protocol
-When the memory log exceeds **150 lines** (check: `wc -l < ~/.claude/agents/memory/team-lead.md`), perform a **diary merge**:
-
-1. **Read the entire file** — both the existing `## Wisdom` section (if any) and all individual entries.
-2. **Identify themes** across old and new entries (e.g., "delegation patterns", "dev count decisions", "phase transitions", "blocker resolution").
-3. **Synthesize a new `## Wisdom` section** that merges old wisdom with patterns from entries being compressed:
-   - Group lessons by theme, not by date
-   - Strengthen repeated lessons (e.g., "3 times: splitting >3 areas into parallel devs saves time")
-   - **Preserve all `Critical: yes` lessons verbatim** with their date and project
-   - Drop routine/obvious lessons that haven't recurred
-4. **Keep the 10 most recent entries intact** below the Wisdom section.
-5. **Delete** the individual entries that were merged into Wisdom.
-
-Goal: keep the file under ~150 lines. The Wisdom section is a living document — each compression re-synthesizes it by merging old wisdom with new patterns, so no lesson is truly lost.
+Memory log: `~/.claude/agents/memory/team-lead.md`
+Suggested themes: delegation patterns, pipeline bottlenecks, dev count decisions, phase transitions, blocker resolution.
