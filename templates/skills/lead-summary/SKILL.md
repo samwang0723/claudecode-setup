@@ -3,7 +3,7 @@ name: lead-summary
 description: >
   Quick progress summary of all tasks. Pipeline status, blockers, next actions.
   Use when asked for "status", "progress", "summary", "blockers", "what's happening".
-disable-model-invocation: false
+disable-model-invocation: true
 context: fork
 agent: team-lead
 ---

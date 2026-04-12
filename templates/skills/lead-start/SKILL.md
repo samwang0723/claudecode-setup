@@ -5,7 +5,7 @@ description: >
   Creates task folder, worktrees, delegates through team-lead.
   Supports --devs N (1-5). Use when told to "start", "build", "implement",
   "work on", "resume", or a task slug is referenced.
-disable-model-invocation: false
+disable-model-invocation: true
 context: fork
 agent: team-lead
 ---
