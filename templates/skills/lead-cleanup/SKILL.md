@@ -3,7 +3,7 @@ name: lead-cleanup
 description: >
   Remove git worktrees and branches for a completed task. Use after merging
   the integrate branch. Confirms before destructive action.
-disable-model-invocation: true
+disable-model-invocation: false
 context: fork
 agent: team-lead
 ---
