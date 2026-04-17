@@ -449,6 +449,36 @@ func FanOut(ctx context.Context, input <-chan Job, workers int) <-chan Result {
 }
 ```
 
+### Goroutine Leak Prevention
+
+```go
+// BAD: Blocks forever if context cancelled and no receiver
+func leakyFetch(ctx context.Context, url string) <-chan []byte {
+    ch := make(chan []byte)
+    go func() {
+        data, _ := fetch(url)
+        ch <- data // blocks forever if no receiver
+    }()
+    return ch
+}
+
+// GOOD: Buffered channel + select on ctx.Done
+func safeFetch(ctx context.Context, url string) <-chan []byte {
+    ch := make(chan []byte, 1)
+    go func() {
+        data, err := fetch(url)
+        if err != nil {
+            return
+        }
+        select {
+        case ch <- data:
+        case <-ctx.Done():
+        }
+    }()
+    return ch
+}
+```
+
 ### Anti-patterns
 
 ```go
@@ -521,6 +551,24 @@ func main() {
 
     srv := &http.Server{Addr: cfg.Addr, Handler: r}
     gracefulShutdown(srv, log)
+}
+```
+
+### Optional Behavior with Type Assertions
+
+```go
+type Flusher interface {
+    Flush() error
+}
+
+func WriteAndFlush(w io.Writer, data []byte) error {
+    if _, err := w.Write(data); err != nil {
+        return err
+    }
+    if f, ok := w.(Flusher); ok {
+        return f.Flush()
+    }
+    return nil
 }
 ```
 
@@ -771,6 +819,94 @@ func gracefulShutdown(srv *http.Server, log *slog.Logger) {
 
 ---
 
+## 13. Memory & Performance
+
+### sync.Pool for Frequent Allocations
+
+```go
+var bufPool = sync.Pool{
+    New: func() any {
+        return new(bytes.Buffer)
+    },
+}
+
+func ProcessRequest(data []byte) []byte {
+    buf := bufPool.Get().(*bytes.Buffer)
+    defer func() {
+        buf.Reset()
+        bufPool.Put(buf)
+    }()
+
+    buf.Write(data)
+    // Process...
+    return bytes.Clone(buf.Bytes())
+}
+```
+
+### String Building
+
+```go
+// BAD: O(n²) allocations in loop
+var result string
+for _, p := range parts {
+    result += p + ","
+}
+
+// GOOD: Single allocation with strings.Builder
+var sb strings.Builder
+for i, p := range parts {
+    if i > 0 {
+        sb.WriteString(",")
+    }
+    sb.WriteString(p)
+}
+return sb.String()
+
+// BEST: Use stdlib when it fits
+return strings.Join(parts, ",")
+```
+
+### Slice/Map Pre-allocation
+
+```go
+// BAD: Grows multiple times
+var results []Result
+for _, item := range items {
+    results = append(results, process(item))
+}
+
+// GOOD: Single allocation
+results := make([]Result, 0, len(items))
+for _, item := range items {
+    results = append(results, process(item))
+}
+```
+
+---
+
+## 14. Tooling
+
+```bash
+# Essential pipeline
+go build ./...
+go test -race ./...
+go vet ./...
+gofmt -w .
+goimports -w .
+
+# Extended analysis
+golangci-lint run
+staticcheck ./...
+
+# Module hygiene
+go mod tidy
+go mod verify
+```
+
+Recommended `.golangci.yml` linters: `errcheck`, `gosimple`, `govet` (with shadow check), `staticcheck`, `unused`, `gofmt`, `goimports`, `misspell`, `unconvert`, `unparam`. Enable `check-type-assertions: true` for errcheck.
+
+---
+
 ## Quick Reference — Do/Don't
 
 | Do | Don't |
@@ -791,3 +927,6 @@ func gracefulShutdown(srv *http.Server, log *slog.Logger) {
 | Channel size 0 or 1 | Arbitrary buffer `make(chan T, 100)` |
 | `defer` outside loops | `defer` inside loops |
 | Copy slices at API boundaries | Return internal slices |
+| `strings.Builder` for concat | `+=` in loops (O(n²)) |
+| `sync.Pool` for hot-path allocs | `new(T)` every request |
+| Buffered chan + `select` ctx.Done | Unbuffered send (goroutine leak) |
